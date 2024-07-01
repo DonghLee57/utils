@@ -47,6 +47,7 @@ class StructureAnalysis:
         return rdf, bin_edges, coordination_numbers
 
     def calculate_rdf(self, rmax, cutoff=2.0, dr=0.02):
+        bins = np.arange(dr / 2, rmax + dr / 2, dr)
         if isinstance(self.structure[0], ase.atom.Atom):
             rdf, bin_edges, coordination_numbers = self.calculate_single_rdf(self.structure, rmax, cutoff, dr)
         elif isinstance(self.structure[0], ase.atoms.Atoms):
@@ -75,15 +76,17 @@ class StructureAnalysis:
         for c in range(rank * psize, (rank + 1) * psize if rank != size - 1 else len(symbol_idx[triplet[0]])):
             center_idx = symbol_idx[triplet[0]][c]
             for n in symbol_idx[triplet[1]]:
+                if n == c: continue
                 vec1 = atoms.get_distances(center_idx, n, mic=True, vector=True)
                 dist1 = np.linalg.norm(vec1)
                 if dist1 < cutoff[0]:
                     for m in symbol_idx[triplet[2]]:
+                        if m == c: continue
                         if m != n:
                             vec2 = atoms.get_distances(center_idx, m, mic=True, vector=True)
                             dist2 = np.linalg.norm(vec2)
                             if dist2 < cutoff[1]:
-                                angle = np.arccos(np.clip(np.dot(vec1, vec2) / (dist1 * dist2), -1.0, 1.0))
+                                angle = np.arccos(np.clip(np.dot(vec1, vec2.T) / (dist1 * dist2), -1.0, 1.0))
                                 theta.append(angle)
         return theta
         
