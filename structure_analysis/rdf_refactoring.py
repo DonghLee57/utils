@@ -43,7 +43,7 @@ class StructureAnalysis:
         coordination_numbers = np.sum(full_dist < cutoff, axis=1)
         return rdf, bin_edges, coordination_numbers
 
-    def calculate_rdf(self, rmax, cutoff=2.0, dr=0.02):
+    def calculate_rdf(self, rmax:float, cutoff:float=2.0, dr:float=0.02):
         if isinstance(self.structure[0], ase.atom.Atom):
             rdf, bin_edges, coordination_numbers = self.calculate_single_rdf(self.structure.copy(), rmax, cutoff, dr)
         elif isinstance(self.structure[0], ase.atoms.Atoms):
@@ -60,7 +60,6 @@ class StructureAnalysis:
         cn_distribution = np.histogram(coordination_numbers, bins=np.arange(self.cn_lim[0], self.cn_lim[1], 1))
         cn_sum = np.sum(cn_distribution[0])
         return np.column_stack((bin_edges[:-1], rdf)), np.column_stack((cn_distribution[1][:-1], cn_distribution[0], cn_distribution[0]/cn_sum))
-
 
 if __name__ == "__main__":
     main()
