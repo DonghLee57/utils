@@ -75,19 +75,20 @@ class StructureAnalysis:
         psize = len(symbol_idx[triplet[0]]) // size
         for c in range(rank * psize, (rank + 1) * psize if rank != size - 1 else len(symbol_idx[triplet[0]])):
             center_idx = symbol_idx[triplet[0]][c]
+            distances = atoms.get_distances(center_idx, range(len(atoms)), mic=True)
+            vectors = atoms.get_distances(center_idx, range(len(atoms)), mic=True, vector=True)
             for n in symbol_idx[triplet[1]]:
                 if n == c: continue
-                vec1 = atoms.get_distances(center_idx, n, mic=True, vector=True)
-                dist1 = np.linalg.norm(vec1)
+                vec1 = vectors[n]
+                dist1 = distances[n]
                 if dist1 < cutoff[0]:
                     for m in symbol_idx[triplet[2]]:
-                        if m == c: continue
-                        if m != n:
-                            vec2 = atoms.get_distances(center_idx, m, mic=True, vector=True)
-                            dist2 = np.linalg.norm(vec2)
-                            if dist2 < cutoff[1]:
-                                angle = np.arccos(np.clip(np.dot(vec1, vec2.T) / (dist1 * dist2), -1.0, 1.0))
-                                theta.append(angle)
+                        if m == c or m == n: continue
+                        vec2 = vectors[m]
+                        dist2 = distances[m]
+                        if dist2 < cutoff[1]:
+                            angle = np.arccos(np.clip(np.dot(vec1, vec2.T) / (dist1 * dist2), -1.0, 1.0))
+                            theta.append(angle)
         return theta
         
     def calculate_adf(self, triplet, cutoff, angle_bins=np.arange(0,180.1,2), expr='degree'):
