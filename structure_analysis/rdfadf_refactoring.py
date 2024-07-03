@@ -14,9 +14,10 @@ def main():
     np.savetxt('rdf.out', rdf, fmt='%.4f')
     np.savetxt('cn_distribution.out', cn_distribution, fmt='%.4f')
 
-    prdf = my.calculate_prdf(['Si','Si'],6, 2.5, 0.005)
+    prdf, cn_distribution = my.calculate_prdf(('Si','Si'),6, 2.5, 0.005)
     np.savetxt('prdf.out', prdf, fmt='%.4f')
-
+    np.savetxt('cn_distribution.out', cn_distribution, fmt='%.4f')
+    
     adf = my.calculate_adf(triplet=('Si', 'Si', 'Si'), cutoff=[2.5, 3.0])
     np.savetxt('adf.out', adf, fmt='%.4f')
     
