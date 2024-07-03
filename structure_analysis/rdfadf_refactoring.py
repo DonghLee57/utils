@@ -14,6 +14,9 @@ def main():
     np.savetxt('rdf.out', rdf, fmt='%.4f')
     np.savetxt('cn_distribution.out', cn_distribution, fmt='%.4f')
 
+    prdf = my.calculate_prdf(['Si','Si'],6, 2.5, 0.005)
+    np.savetxt('prdf.out', prdf, fmt='%.4f')
+
     adf = my.calculate_adf(triplet=('Si', 'Si', 'Si'), cutoff=[2.5, 3.0])
     np.savetxt('adf.out', adf, fmt='%.4f')
     
@@ -65,6 +68,53 @@ class StructureAnalysis:
         cn_sum = np.sum(cn_distribution[0])
         return np.column_stack((bin_edges[:-1], rdf)), np.column_stack((cn_distribution[1][:-1], cn_distribution[0], cn_distribution[0]/cn_sum))
 
+    def calculate_single_prdf(self, atoms:ase.atom.Atom, targets:tuple, rmax:float, cutoff:float, dr:float):
+        (elemA, elemB) = targets
+        bins = np.arange(dr / 2, rmax + dr / 2, dr)
+        prdf = np.zeros(len(bins) - 1)
+        if rmax > atoms.get_cell().diagonal().min() / 2:
+            print('WARNING: The input maximum radius is over the half the smallest cell dimension.')
+        sym = np.array(atoms.get_chemical_symbols())
+        idA = np.where( sym == elemA )[0]
+        nelemA = len(idA)
+        idB = np.where( sym == elemB )[0]
+        nelemB = len(idB)
+        full_dist = np.zeros((nelemA, nelemB))
+        local_nions = nelemA // size
+        start = rank * local_nions
+        end = nions if rank == size - 1 else (rank + 1) * local_nions
+        local_dist = np.zeros((end - start, nelemB))
+        for i in range(start, end):
+            distances = atoms.get_distances(i, idB, mic=True)
+            local_dist[i - start] = distances
+        comm.Allgatherv(local_dist, full_dist)
+        res, bin_edges = np.histogram(full_dist, bins=bins)
+        prdf += res / (nelemA * nelemB / atoms.get_volume() * 4 * np.pi * dr * bin_edges[:-1]**2)
+        if elemA == elemB:
+            coordination_numbers = np.sum(full_dist < cutoff, axis=1) - 1
+        else:
+            coordination_numbers = np.sum(full_dist < cutoff, axis=1)
+        return prdf, bin_edges, coordination_numbers
+
+    def calculate_prdf(self, targets:tuple, rmax:float, cutoff:float=2.0, dr:float=0.02):
+        bins = np.arange(dr / 2, rmax + dr / 2, dr)
+        if isinstance(self.structure[0], ase.atom.Atom):
+            prdf, bin_edges, coordination_numbers = self.calculate_single_prdf(self.structure, targets, rmax, cutoff, dr)
+        elif isinstance(self.structure[0], ase.atoms.Atoms):
+            nimg = len(self.structure)
+            prdf = np.zeros(len(bins) - 1)
+            for idx, atoms in enumerate(self.structure):
+                if idx == 0: 
+                    nions = atoms.get_global_number_of_atoms()
+                    coordination_numbers = np.zeros(nimg*nions)
+                single_prdf, bin_edges, single_coordination_numbers = self.calculate_single_prdf(atoms, targets, rmax, cutoff, dr)
+                prdf += single_prdf
+                coordination_numbers[idx*nions: (idx+1)*nions] = single_coordination_numbers
+            prdf /= nimg
+        cn_distribution = np.histogram(coordination_numbers, bins=np.arange(self.cn_lim[0], self.cn_lim[1], 1))
+        cn_sum = np.sum(cn_distribution[0])
+        return np.column_stack((bin_edges[:-1], prdf)), np.column_stack((cn_distribution[1][:-1], cn_distribution[0], cn_distribution[0]/cn_sum))    
+    
     def calculate_angles(self, atoms, triplet, cutoff):
         theta = []
         symbol_idx = {s: [] for s in triplet}
