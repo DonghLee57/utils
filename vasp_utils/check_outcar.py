@@ -15,7 +15,12 @@ def check_outcar(PATH):
     else:
         with open(PATH,'r') as o: tmp = o.readlines()
         # Normal END ?
-        if 'Voluntary' != tmp[-1].split()[0]:
+        last_line = tmp[-1].split()
+        if len(last_line) > 0:
+            if 'Voluntary' != tmp[-1].split()[0]:
+                print(f"!!! ABNORMAL END: {PATH} !!!")
+                return 0
+        else:
             print(f"!!! ABNORMAL END: {PATH} !!!")
             return 0
         # Electronic step Convergence ?
