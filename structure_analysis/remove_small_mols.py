@@ -44,9 +44,9 @@ def process_graph(edges, num_nodes):
         uf.union(x, y)
     return uf
 
-def create_graph_object(filename, pair_cutoffs):
-    atoms = read(filename)
-    #atoms = read(filename, style='atomic', format='lammps-data')
+def create_graph_object(structure_file, pair_cutoffs):
+    atoms = read(structure_file)
+    #atoms = read(structure_file, style='atomic', format='lammps-data')
     num_atoms = len(atoms)
 
     atoms_per_proc = num_atoms // size
@@ -59,7 +59,7 @@ def create_graph_object(filename, pair_cutoffs):
         for j in range(num_atoms):
             if i != j:
                 pairs = tuple(sorted((atoms[i].symbol, atoms[j].symbol)))
-                cutoff = PAIRCUTOFFS.get(pairs, CUTOFF)
+                cutoff = pair_cutoffs.get(pairs, CUTOFF)
                 if local_distances[j] <= cutoff:
                     local_indices.append((i, j))
 
@@ -73,8 +73,8 @@ def create_graph_object(filename, pair_cutoffs):
     return None, None
 
 def main():
-    filename = sys.argv[1]
-    graph, atoms = create_graph_object(filename, pair_cutoffs)
+    structure_file = sys.argv[1]
+    graph, atoms = create_graph_object(structure_file, PAIRCUTOFFS)
     if rank == 0:
         num_nodes = graph.num_nodes
         edges = graph.edge_index.t().tolist()
