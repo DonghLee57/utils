@@ -2,7 +2,7 @@ from mpi4py import MPI
 import sys
 import numpy as np
 from ase.io import read, write
-from ase.data import atomic_numbers
+from ase.data import atomic_numbers, chemical_symbols
 import torch
 from torch_geometric.data import Data
 comm = MPI.COMM_WORLD
@@ -15,6 +15,9 @@ CUTOFF = 2.4    # Maximum distance between atoms to be considered connected in t
 PAIRCUTOFFS = {
     tuple(sorted(('Si','Si'))):2.4,
     tuple(sorted(('Si','H'))): 2.0}
+OUTPUT = 'output.vasp'
+# LAMMPS output setting - With N-element system, set [1:N+1]
+SPECORDER = chemical_symbols[1:6] 
 
 class UnionFind:
     def __init__(self, num_elements):
@@ -112,9 +115,9 @@ def main():
         if nodes_to_remove:
             atoms = atoms[[i for i in range(len(atoms)) if i not in nodes_to_remove]]
 
-        write('output.vasp', images=atoms, format='vasp', parallel=False)
-        #write('output.lammps', images=atoms, format='lammps-data', parallel=False)
-        #write('output.extxyz', images=atoms, format='extxyz', parallel=False)
+        write(OUTPUT+'.vasp', images=atoms, format='vasp', parallel=False)
+        #write(OUTPUT+'.lammps', images=atoms, format='lammps-data', parallel=False, specorder=SPECORDER)
+        #write(OUTPUT+'.extxyz', images=atoms, format='extxyz', parallel=False)
     return 0
 
 if __name__ == "__main__":
