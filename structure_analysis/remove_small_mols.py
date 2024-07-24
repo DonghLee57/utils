@@ -15,7 +15,7 @@ CUTOFF = 2.4    # Maximum distance between atoms to be considered connected in t
 PAIRCUTOFFS = {
     tuple(sorted(('Si','Si'))):2.4,
     tuple(sorted(('Si','H'))): 2.0}
-OUTPUT = 'output.vasp'
+OUTPUT = 'output'
 # LAMMPS output setting - With N-element system, set [1:N+1]
 SPECORDER = chemical_symbols[1:6] 
 
