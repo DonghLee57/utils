@@ -8,8 +8,11 @@ rank = comm.Get_rank()
 
 import sys
 def main():
-    my = StructureAnalysis(sys.argv[1], 'vasp')
-
+    my = StructureAnalysis()
+    my.load_structure(sys.argv[1], sys.argv[2])
+    #my.load_structure('POSCAR', 'vasp')
+    #my.load_structure('input.lammps', 'lammps-data')
+    
     rdf, cn_distribution = my.calculate_rdf(6, 2.5, 0.005)
     np.savetxt('rdf.out', rdf, fmt='%.4f')
     np.savetxt('cn_distribution.out', cn_distribution, fmt='%.4f')
@@ -25,9 +28,35 @@ def main():
 
 class StructureAnalysis:
     def __init__(self, filename:str, fileformat:str, index='-1'):
-        self.structure = read(filename, index=index, format=fileformat)
+        self.structure = None
         self.cn_lim = [0, 10]
 
+    def load_structure(self, filename: str, file_format: str, **kwargs):
+        """
+        Load atomic structure from file.
+        
+        Args:
+            filename (str): Path to the input file.
+            file_format (str): Format of the input file ('vasp' or 'lammps-data').
+            **kwargs: Additional keyword arguments for ase.io.read function.
+        """
+        if file_format not in ['vasp', 'lammps-data']:
+            raise ValueError("Unsupported file format. Use 'vasp' or 'lammps-data'.")
+
+        default_args = {
+            'vasp': {'index': -1},
+            'lammps-data': {'index':-1,
+                            'style': 'atomic'}
+        }
+
+        # Merge default arguments with user-provided kwargs
+        read_args = {**default_args[file_format], **kwargs}
+
+        try:
+            self.structure = read(filename, format=file_format, **read_args)
+        except Exception as e:
+            raise IOError(f"Failed to load structure: {str(e)}")
+    
     def calculate_single_rdf(self, atoms:ase.atom.Atom, rmax:float, cutoff:float, dr:float):
         bins = np.arange(dr / 2, rmax + dr / 2, dr)
         rdf = np.zeros(len(bins) - 1)
