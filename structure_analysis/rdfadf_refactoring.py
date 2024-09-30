@@ -83,10 +83,10 @@ class StructureAnalysis:
         full_dist = np.zeros((nelemA, nelemB))
         local_nions = nelemA // size
         start = rank * local_nions
-        end = nions if rank == size - 1 else (rank + 1) * local_nions
+        end = nelemA if rank == size - 1 else (rank + 1) * local_nions
         local_dist = np.zeros((end - start, nelemB))
         for i in range(start, end):
-            distances = atoms.get_distances(i, idB, mic=True)
+            distances = atoms.get_distances(idA[i], idB, mic=True)
             local_dist[i - start] = distances
         comm.Allgatherv(local_dist, full_dist)
         res, bin_edges = np.histogram(full_dist, bins=bins)
