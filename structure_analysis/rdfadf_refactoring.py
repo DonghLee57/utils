@@ -27,7 +27,7 @@ def main():
     return 0
 
 class StructureAnalysis:
-    def __init__(self, filename:str, fileformat:str, index='-1'):
+    def __init__(self):
         self.structure = None
         self.cn_lim = [0, 10]
 
@@ -44,8 +44,8 @@ class StructureAnalysis:
             raise ValueError("Unsupported file format. Use 'vasp' or 'lammps-data'.")
 
         default_args = {
-            'vasp': {'index': -1},
-            'lammps-data': {'index':-1,
+            'vasp': {'index': None},
+            'lammps-data': {'index': None,
                             'style': 'atomic'}
         }
 
