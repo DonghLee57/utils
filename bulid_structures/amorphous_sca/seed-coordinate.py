@@ -13,37 +13,63 @@ ANGSTROM_TO_CM = 1E-8
 
 def main():
     # Usage example
-    input_data = load_input('input.yaml')
+    input_data = load_input('input1.yaml')
     simulation = SCBuilder(input_data)
     simulation.run_simulation()
     atoms = simulation.get_structure()
     print(atoms)
     print(calculate_mass_density(atoms))
-    write('amorphous_seed-coordinate.vasp', atoms, format='vasp')
+    write('test1.vasp', atoms, format='vasp')
+
+    input_data = load_input('input2.yaml')
+    simulation = SCBuilder(input_data)
+    simulation.run_simulation()
+    atoms = simulation.get_structure()
+    print(atoms)
+    print(calculate_mass_density(atoms))
+    write('test2.vasp', atoms, format='vasp')
 
 #
 def load_input(filename: str) -> dict:
     """
     Load and process input data from a YAML file.
-
-    Args:
-        filename (str): Path to the input YAML file.
-
-    Returns:
-        dict: Processed input data.
     """
     with open(filename, 'r') as file:
         input_data = yaml.safe_load(file)
-
-    input_data['lattice'] = process_lattice(input_data['lattice'])
-
-    required_keys = {'lattice', 'density', 'chemical_formula'}
-    if required_keys.issubset(input_data.keys()):
+    
+    if 'lattice' in input_data and 'density' in input_data and 'chemical_formula' in input_data:
+        # Case 1: Calculate num_atoms based on lattice, density, and chemical_formula
+        input_data['lattice'] = process_lattice(input_data['lattice'])
         chemical_formula = parse_chemical_formula(input_data['chemical_formula'])
+        input_data['atom_types'] = list(chemical_formula.keys())
         input_data['num_atoms'] = calculate_num_atoms(input_data['lattice'],
                                                       input_data['density'],
                                                       chemical_formula)
+    elif 'density' in input_data and 'num_atoms' in input_data and 'atom_types' in input_data:
+        # Case 2: Calculate lattice based on density, num_atoms, and atom_types
+        total_atoms = sum(input_data['num_atoms'])
+        total_mass = calculate_total_mass(input_data['num_atoms'], input_data['atom_types'])
+        input_data['lattice'] = calculate_lattice(total_atoms, input_data['density'], total_mass)
+    else:
+        raise ValueError("Input must contain either 'lattice', 'density', and 'chemical_formula' or 'density', 'num_atoms', and 'atom_types'")
+    
     return input_data
+
+def calculate_total_mass(num_atoms: list, atom_types: list) -> float:
+    """
+    Calculate the total mass of the system.
+    """
+    return sum(atomic_masses[chemical_symbols.index(atom)] * num for atom, num in zip(atom_types, num_atoms))
+
+def calculate_num_atoms(lattice: np.ndarray, density: float, chemical_formula: dict) -> list:
+    """
+    Calculate the number of atoms for each element based on lattice, density, and chemical formula.
+    """
+    volume = np.abs(np.linalg.det(lattice))
+    total_mass = sum(atomic_masses[chemical_symbols.index(elem)] * count for elem, count in chemical_formula.items())
+    target_formula_units = (density * volume * (ANGSTROM_TO_CM**3) * CONST.N_A) / total_mass
+    formula_units = max(1, round(target_formula_units))
+    return [count * formula_units for count in chemical_formula.values()]
 
 def process_lattice(lattice):
     """
@@ -70,38 +96,6 @@ def process_lattice(lattice):
     else:
         raise TypeError("Lattice must be a float, list, or numpy array")
 
-def parse_chemical_formula(formula: str) -> dict:
-    """
-    Parse a chemical formula string into a dictionary.
-
-    Args:
-        formula (str): Chemical formula string.
-
-    Returns:
-        dict: Dictionary with elements as keys and their counts as values.
-    """
-    pattern = r'([A-Z][a-z]*)(\d*)'
-    matches = re.findall(pattern, formula)
-    return {element: int(count) if count else 1 for element, count in matches}
-
-def calculate_num_atoms(lattice: np.ndarray, density: float, chemical_formula: dict) -> dict:
-    """
-    Calculate the number of atoms for each element based on lattice, density, and chemical formula.
-
-    Args:
-        lattice (np.ndarray): 3x3 lattice array.
-        density (float): Density in g/cm3.
-        chemical_formula (dict): Dictionary representation of chemical formula.
-
-    Returns:
-        dict: Number of atoms for each element.
-    """
-    volume = np.abs(np.linalg.det(lattice))
-    total_mass = sum(atomic_masses[chemical_symbols.index(elem)] * count for elem, count in chemical_formula.items())
-    target_formula_units = (density * volume * (ANGSTROM_TO_CM**3) * CONST.N_A) / total_mass
-    formula_units = max(1, round(target_formula_units))
-    return {elem: count * formula_units for elem, count in chemical_formula.items()}
-
 def calculate_mass_density(atoms: Atoms) -> float:
     """
     Calculate the mass density of an ASE Atoms object.
@@ -127,46 +121,52 @@ class SCBuilder:
         self.prob_cn = input_data['prob_cn']
         self.atoms = Atoms(cell=self.lattice, pbc=True)
         self.cn_targets = []
-        self.atom_counts = {atom_type: 0 for atom_type in self.num_atoms.keys()}
-        self.total_atoms = sum(self.num_atoms.values())
+        self.atom_counts = [0] * len(self.atom_types)
+        print(self.num_atoms)
+        self.total_atoms = sum(self.num_atoms)
+        self.log = input_data.get('log', 0)  # Default is 0, set to 1 to enable logging
+        if self.log:
+            self.log_file = open('sca.log', 'w')
+
+    def __del__(self):
+        if self.log:
+            self.log_file.close()
+
+    def write_log(self, atom_index, atom_type, process_step, position):
+        if self.log:
+            log_entry = f"{atom_index} {atom_type} {process_step} {position[0]:.6f} {position[1]:.6f} {position[2]:.6f}\n"
+            self.log_file.write(log_entry)
+            self.log_file.flush()  # Ensure the log is written immediately
 
     def run_simulation(self):
         """Run the SCA simulation to generate the atomic structure."""
         atom_index = 0
         placed_atoms = 0
-
-        while any(self.atom_counts[atom_type] < self.num_atoms[atom_type] for atom_type in self.num_atoms):
+        while any(count < target for count, target in zip(self.atom_counts, self.num_atoms)):
             if atom_index == placed_atoms:
                 if self.seed_step(atom_index):
                     placed_atoms += 1
             else:
                 if self.coordinate_step(atom_index):
                     placed_atoms += 1
-                else:
-                    atom_index += 1
+            atom_index += 1
 
     def seed_step(self, index: int) -> bool:
-        """
-        Perform a seed step in the SCA algorithm.
-
-        Args:
-            index (int): Current atom index.
-
-        Returns:
-            bool: True if seeding was successful, False otherwise.
-        """
-        available_types = [at for at in self.num_atoms if self.atom_counts[at] < self.num_atoms[at]]
-        atom_type = np.random.choice(available_types)
-
+        """Perform a seed step in the SCA algorithm."""
+        available_types = [i for i, (count, target) in enumerate(zip(self.atom_counts, self.num_atoms)) if count < target]
+        atom_type_index = np.random.choice(available_types)
+        atom_type = self.atom_types[atom_type_index]
+        
         for _ in range(MAX_ITERATIONS):
             position = np.random.rand(3) @ self.lattice
             if self.check_seed_position(position, atom_type):
                 self.atoms.append(atom_type)
                 self.atoms.positions[-1] = position
-                self.atom_counts[atom_type] += 1
+                self.atom_counts[atom_type_index] += 1
                 self.cn_targets.append(self.get_target_cn(atom_type))
+                self.write_log(index, atom_type, "seed", position)
                 return True
-
+        
         print(f"Failed to place seed atom of type {atom_type} after {MAX_ITERATIONS} attempts at {index}")
         return False
 
@@ -183,7 +183,7 @@ class SCBuilder:
         """
         if len(self.atoms) == 0:
             return True
-        
+
         for i, other_type in enumerate(self.atoms.get_chemical_symbols()):
             distance = self.pbc_distance(position, self.atoms.positions[i])
             min_dist = self.d_min[f'{atom_type}-{other_type}']
@@ -197,20 +197,38 @@ class SCBuilder:
         return np.linalg.norm(diff)
 
     def coordinate_step(self, index: int) -> bool:
-        """
-        Perform a coordinate step in the SCA algorithm.
-
-        Args:
-            index (int): Index of the atom to coordinate.
-
-        Returns:
-            bool: True if coordination was successful, False otherwise.
-        """
+        """Perform a coordinate step in the SCA algorithm."""
         if self.get_current_cn(index) >= self.cn_targets[index]:
             return False
 
-        neighbor_type = self.choose_neighbor_type(self.atoms[index].symbol)
-        return self.add_neighbor(index, neighbor_type)
+        atom_type = self.atom_types[self.atoms[index].symbol]
+        neighbor_type = self.choose_neighbor_type(atom_type)
+
+        for _ in range(MAX_ITERATIONS):
+            if sum(self.atom_counts) >= sum(self.num_atoms):
+                return False
+
+            direction = np.random.randn(3)
+            direction /= np.linalg.norm(direction)
+            distance = np.random.uniform(
+                self.d_min[f'{atom_type}-{neighbor_type}'],
+                self.d_max[f'{atom_type}-{neighbor_type}']
+            )
+
+            new_position = self.atoms.positions[index] + direction * distance
+            new_position = np.dot(new_position, np.linalg.inv(self.lattice)) % 1
+            new_position = np.dot(new_position, self.lattice)
+
+            if self.check_new_position(new_position, neighbor_type):
+                self.atoms.append(neighbor_type)
+                self.atoms.positions[-1] = new_position
+                self.atom_counts[self.atom_types.index(neighbor_type)] += 1
+                self.cn_targets.append(self.get_target_cn(neighbor_type))
+                if self.log:
+                    self.write_log(len(self.atoms)-1, neighbor_type, "coordinate", new_position)
+                return True
+
+        return False
 
     def get_target_cn(self, atom_type: str) -> int:
         """
@@ -238,44 +256,6 @@ class SCBuilder:
         """
         probs = [self.prob_types[atom_type][t] for t in self.atom_types]
         return np.random.choice(self.atom_types, p=probs)
-
-    def add_neighbor(self, center_index: int, neighbor_type: str) -> bool:
-        """
-        Add a neighbor atom to a central atom.
-
-        Args:
-            center_index (int): Index of the central atom.
-            neighbor_type (str): Type of the neighbor atom to add.
-
-        Returns:
-            bool: True if neighbor was successfully added, False otherwise.
-        """
-        for _ in range(MAX_ITERATIONS):
-            if self.atom_counts[neighbor_type] >= self.num_atoms[neighbor_type]:
-                return False
-
-            direction = np.random.randn(3)
-            direction /= np.linalg.norm(direction)
-            distance = np.random.uniform(
-                self.d_min[f'{self.atoms[center_index].symbol}-{neighbor_type}'],
-                self.d_max[f'{self.atoms[center_index].symbol}-{neighbor_type}']
-            )
-
-            new_position = self.atoms.positions[center_index] + direction * distance
-            new_position = np.dot(new_position, np.linalg.inv(self.lattice)) % 1
-            new_position = np.dot(new_position, self.lattice)
-
-            self.atoms.append(neighbor_type)
-            self.atoms.positions[-1] = new_position
-
-            if self.check_distances(len(self.atoms) - 1):
-                self.atom_counts[neighbor_type] += 1
-                self.cn_targets.append(self.get_target_cn(neighbor_type))
-                return True
-            else:
-                del self.atoms[-1]
-
-        return False
 
     def check_distances(self, atom_index: int) -> bool:
         """
