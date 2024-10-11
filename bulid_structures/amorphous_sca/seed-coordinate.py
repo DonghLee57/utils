@@ -47,40 +47,19 @@ def load_input(filename: str) -> dict:
                                                       chemical_formula)
     elif 'density' in input_data and 'num_atoms' in input_data and 'atom_types' in input_data:
         # Case 2: Calculate lattice based on density, num_atoms, and atom_types
-        total_atoms = sum(input_data['num_atoms'])
-        total_mass = calculate_total_mass(input_data['num_atoms'], input_data['atom_types'])
-        input_data['lattice'] = calculate_lattice(total_atoms, input_data['density'], total_mass)
+        input_data['lattice'] = calculate_lattice(input_data['num_atoms'], input_data['density'], input_data['atom_types'])
     else:
         raise ValueError("Input must contain either 'lattice', 'density', and 'chemical_formula' or 'density', 'num_atoms', and 'atom_types'")
     
     return input_data
 
-def calculate_total_mass(num_atoms: list, atom_types: list) -> float:
-    """
-    Calculate the total mass of the system.
-    """
-    return sum(atomic_masses[chemical_symbols.index(atom)] * num for atom, num in zip(atom_types, num_atoms))
-
-def calculate_num_atoms(lattice: np.ndarray, density: float, chemical_formula: dict) -> list:
-    """
-    Calculate the number of atoms for each element based on lattice, density, and chemical formula.
-    """
-    volume = np.abs(np.linalg.det(lattice))
-    total_mass = sum(atomic_masses[chemical_symbols.index(elem)] * count for elem, count in chemical_formula.items())
-    target_formula_units = (density * volume * (ANGSTROM_TO_CM**3) * CONST.N_A) / total_mass
-    formula_units = max(1, round(target_formula_units))
-    return [count * formula_units for count in chemical_formula.values()]
-
 def process_lattice(lattice):
     """
     Process the lattice parameter from input.
-
     Args:
         lattice: The lattice parameter. Can be a float or a 3x3 list/array.
-
     Returns:
         numpy.ndarray: A 3x3 array representing the cell.
-
     Raises:
         ValueError: If lattice is not in the correct format.
         TypeError: If lattice is not a float, list, or numpy array.
@@ -96,13 +75,50 @@ def process_lattice(lattice):
     else:
         raise TypeError("Lattice must be a float, list, or numpy array")
 
+def parse_chemical_formula(formula: str) -> dict:
+    """
+    Parse a chemical formula string into a dictionary.
+    Args:
+        formula (str): Chemical formula string.
+    Returns:
+        dict: Dictionary with elements as keys and their counts as values.
+    """
+    pattern = r'([A-Z][a-z]*)(\d*)'
+    matches = re.findall(pattern, formula)
+    return {element: int(count) if count else 1 for element, count in matches}
+
+def calculate_num_atoms(lattice: np.ndarray, density: float, chemical_formula: dict) -> list:
+    """
+    Calculate the number of atoms for each element based on lattice, density, and chemical formula.
+    """
+    volume = np.abs(np.linalg.det(lattice))
+    total_mass = sum(atomic_masses[chemical_symbols.index(elem)] * count for elem, count in chemical_formula.items())
+    target_formula_units = (density * volume * (ANGSTROM_TO_CM**3) * CONST.N_A) / total_mass
+    formula_units = max(1, round(target_formula_units))
+    return [count * formula_units for count in chemical_formula.values()]
+
+def calculate_lattice(num_atoms: list, density: float, atom_types: list) -> np.ndarray:
+    """
+    Calculate the lattice parameter based on density, num_atoms, and atom_types.
+    Args:
+        num_atoms (list): Number of atoms for each atom type.
+        density (float): Target density in g/cm^3.
+        atom_types (list): List of atom types.
+    Returns:
+        np.ndarray: A 3x3 array representing the cubic cell.
+    """
+    total_mass = sum(atomic_masses[chemical_symbols.index(atom)] * num for atom, num in zip(atom_types, num_atoms))
+    total_atoms = sum(num_atoms)
+    volume_cm3 = (total_mass / CONST.N_A) / density
+    volume_angstrom3 = volume_cm3 / ANGSTROM_TO_CM**3
+    lattice_parameter = np.cbrt(volume_angstrom3)
+    return np.eye(3) * lattice_parameter
+
 def calculate_mass_density(atoms: Atoms) -> float:
     """
     Calculate the mass density of an ASE Atoms object.
-
     Args:
         atoms (ase.Atoms): The Atoms object to calculate density for.
-
     Returns:
         float: The mass density in g/cm3.
     """
