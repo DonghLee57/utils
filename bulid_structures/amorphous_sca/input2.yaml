@@ -6,12 +6,12 @@ d_min:
   Si-O: 1.6
   O-Si: 1.6
   Si-Si: 2.3
-  O-O: 2.3
+  O-O: 2.0
 d_max:
   Si-O: 1.9
   O-Si: 1.9
   Si-Si: 3.0
-  O-O: 4.0
+  O-O: 2.0
 prob_types:
   Si:
     Si: 0.0
