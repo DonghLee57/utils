@@ -10,6 +10,7 @@ import scipy.constants as CONST
 # Constants
 MAX_ITERATIONS = 5000
 ANGSTROM_TO_CM = 1E-8
+
 def main():
     # Usage example
     input_data = load_input('input1.yaml')
@@ -164,17 +165,16 @@ class SCBuilder:
         """Run the SCA simulation to generate the atomic structure."""
         self.atom_index = 0
         self.total_index = 0
-        print("len(self.atoms), self.total_index, self.atom_index, self.target_cn, self.current_cn")
-        while self.total_index < self.total_atoms-1:
-            if self.atom_index == self.total_index:
+        seed_tag = 0
+        while self.total_index < self.total_atoms:
+            if self.atom_index == self.total_index or seed_tag:
                 self.seed_step()
-                self.coordinate_steps()
+                seed_tag = self.coordinate_steps()
             else:
                 if self.current_cn == self.target_cn:
                     self.atom_index += 1
                 else:
-                    self.coordinate_steps()
-            print(len(self.atoms), self.total_index, self.atom_index, self.target_cn, self.current_cn)
+                    seed_tag = self.coordinate_steps()
         print(f"Simulation completed. Placed {sum(self.atom_counts)} out of {self.total_atoms} atoms.")
 
     def seed_step(self) -> None:
@@ -234,7 +234,9 @@ class SCBuilder:
         for i, other_type in enumerate(self.atoms.get_chemical_symbols()):
             distance = self.pbc_distance(position, self.atoms.positions[i])
             max_dist = self.d_max[f'{atom_type}-{other_type}']
-            if distance <= max_dist:
+            min_dist = self.d_min[f'{atom_type}-{other_type}']
+            #if distance <= max_dist:
+            if distance <= min_dist:
                 return False
         return True
 
@@ -267,7 +269,9 @@ class SCBuilder:
                     break
             else:
                 print(f"Failed to place coordination atom for {atom_type} after {MAX_ITERATIONS} attempts")
-                break
+                #break
+                return 1
+        return 0
 
     def check_coordinate_position(self, position: np.ndarray, atom_type: str) -> bool:
         """
@@ -277,7 +281,6 @@ class SCBuilder:
         """
         seed_distance = self.pbc_distance(position, self.atoms.positions[self.atom_index])
         seed_type = self.atoms[self.atom_index].symbol
-        print(self.atom_index, self.atoms[self.atom_index].symbol, atom_type, self.atoms.positions[self.atom_index], position, seed_distance, seed_distance < self.d_min[f'{seed_type}-{atom_type}'] or seed_distance > self.d_max[f'{seed_type}-{atom_type}'])
         if seed_distance < self.d_min[f'{seed_type}-{atom_type}'] or seed_distance > self.d_max[f'{seed_type}-{atom_type}']:
             return False
 
@@ -286,7 +289,6 @@ class SCBuilder:
                 distance = self.pbc_distance(position, self.atoms.positions[i])
                 max_dist = self.d_max[f'{atom_type}-{other_type}']
                 if distance <= max_dist:
-                    print(f'{atom_type}-{other_type}',distance, max_dist)
                     return False
         return True
 
