@@ -56,13 +56,10 @@ def load_input(filename: str) -> dict:
 def process_lattice(lattice):
     """
     Process the lattice parameter from input.
-
     Args:
         lattice: The lattice parameter. Can be a float or a 3x3 list/array.
-
     Returns:
         numpy.ndarray: A 3x3 array representing the cell.
-
     Raises:
         ValueError: If lattice is not in the correct format.
         TypeError: If lattice is not a float, list, or numpy array.
@@ -103,12 +100,10 @@ def calculate_num_atoms(lattice: np.ndarray, density: float, chemical_formula: d
 def calculate_lattice(num_atoms: list, density: float, atom_types: list) -> np.ndarray:
     """
     Calculate the lattice parameter based on density, num_atoms, and atom_types.
-
     Args:
         num_atoms (list): Number of atoms for each atom type.
         density (float): Target density in g/cm^3.
         atom_types (list): List of atom types.
-
     Returns:
         np.ndarray: A 3x3 array representing the cubic cell.
     """
@@ -122,10 +117,8 @@ def calculate_lattice(num_atoms: list, density: float, atom_types: list) -> np.n
 def calculate_mass_density(atoms: Atoms) -> float:
     """
     Calculate the mass density of an ASE Atoms object.
-
     Args:
         atoms (ase.Atoms): The Atoms object to calculate density for.
-
     Returns:
         float: The mass density in g/cm3.
     """
@@ -300,15 +293,43 @@ class SCBuilder:
     def choose_neighbor_type(self, atom_type: str) -> str:
         """
         Choose a neighbor type based on probabilities.
-
         Args:
             atom_type (str): Type of the central atom.
-
         Returns:
             str: Chosen neighbor atom type.
         """
         probs = [self.prob_types[atom_type][t] for t in self.atom_types]
         return np.random.choice(self.atom_types, p=probs)
+
+    def choose_neighbor_type2(self, atom_type: str) -> str:
+        """
+        Choose a neighbor type based on current atom counts and target numbers.
+        Args:
+            atom_type (str): Type of the central atom.
+        Returns:
+            str: Chosen neighbor atom type.
+        """
+        # Calculate remaining atoms needed for each type
+        remaining_atoms = [target - count for target, count in zip(self.num_atoms, self.atom_counts)]
+    
+        # If all types have reached their target, return None or handle accordingly
+        if all(r <= 0 for r in remaining_atoms):
+            print("All atom types have reached their target counts.")
+            return None
+
+        # Calculate adjusted probabilities based on remaining atoms
+        adjusted_probs = [max(0, r) for r in remaining_atoms]
+    
+        # Normalize probabilities to sum to 1
+        total = sum(adjusted_probs)
+        if total > 0:
+            normalized_probs = [p / total for p in adjusted_probs]
+        else:
+            normalized_probs = [1.0 / len(adjusted_probs)] * len(adjusted_probs)  # Fallback to equal probabilities
+
+        # Choose an atom type based on these adjusted probabilities
+        return np.random.choice(self.atom_types, p=normalized_probs)
+    
 
     def get_current_cn(self, atom_index: int) -> int:
         """
@@ -329,7 +350,6 @@ class SCBuilder:
     def get_structure(self) -> Atoms:
         """
         Get the final atomic structure.
-
         Returns:
             Atoms: ASE Atoms object representing the final structure.
         """
