@@ -1,10 +1,9 @@
-# python3
+# python3 POSCAR (PBE/LDA)
 # Materials Project > methodology > calculation details > GGA+U calculations > Pseudo-potentials
 #     https://docs.materialsproject.org/methodology/materials-methodology/calculation-details/gga+u-calculations/pseudopotentials
 #
 import sys, os
 pot_path='your_POTCAR/PAW_PBE/'
-my_poscar = sys.argv[1]
 custom_dictionary={'K':'K_pv','Ca':'Ca_pv',\
                    'Sr':'Sr_sv','Y':'Y_sv','Zr':'Zr_sv','Nb':'Nb_pv',\
                    'Ba':'Ba_sv'}
@@ -29,7 +28,7 @@ my_dictionanry = mp_dictionary
 #my_dictionanry = custom_dictionary
 #check_potcar_repo(my_dictionary)
 
-with open(my_poscar, 'r') as o:
+with open(sys.argv[1], 'r') as o:
     types = o.readlines()[5].split()
 
 for i in range(len(types)):
