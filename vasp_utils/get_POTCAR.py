@@ -10,10 +10,10 @@ custom_dictionary={'K':'K_pv','Ca':'Ca_pv',\
 
 def check_potcar_repo(dic):
     keys = list(dic.keys())
-    print(f"{'POTCAR':^10s} {'Status':^10s}")
+    print(f"{'POTCAR':<6s} {'Status':<8s}")
     for idx, item in enumerate(keys):
         check_path = f"{PATH_POT}/{dic[item]}"
-        print(f"{item:>10s}: {os.path.isdir(check_path)}")
+        print(f"{item:<6s} {os.path.isdir(check_path)}")
 
 a = {'Li': 'Li_sv', 'Na': 'Na_pv', 'K': 'K_sv', 'Cs': 'Cs_sv', 'Rb': 'Rb_sv'}
 b = {'Be': 'Be_sv', 'Mg': 'Mg_pv', 'Ca': 'Ca_sv', 'Sr': 'Sr_sv', 'Ba': 'Ba_sv'}
