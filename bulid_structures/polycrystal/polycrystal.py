@@ -134,13 +134,15 @@ def estimate_cell_size_and_generate_seeds(grain_config):
     else:
         lat = np.eye(3) * cell_size
     seeds = np.empty((total_grains, 3))
-    min_distance = 2 * config['grain_radius']
+    min_distance =  config['grain_radius']
     attempts = 0
     for i in range(total_grains):
         while True:
-            new_seed = np.random.rand(3) * cell_size
+            new_seed = np.random.rand(3)
             fixed = np.where(grain_config.loc[i,['position_x','position_y','position_z']] != 'R')[0]
-            new_seed[fixed] = grain_config.loc[i,np.array(['position_x','position_y','position_z'])[fixed]] @ lat
+            new_seed[fixed] = list(map(float,grain_config.loc[i, np.array(['position_x','position_y','position_z'])[fixed]].values))
+            new_seed = new_seed @ lat
+            print(new_seed)
             if i == 0 or np.all(np.linalg.norm(seeds[:i] - new_seed, axis=1) >= min_distance):
                 seeds[i] = new_seed
                 break
@@ -148,6 +150,7 @@ def estimate_cell_size_and_generate_seeds(grain_config):
             if attempts > 1000:
                 raise ValueError("Too many attempts to place seeds.")
     return lat, seeds
+
 
 def remove_atoms_near_other_seeds(grain, seed_positions, current_seed_index, pad_width):
     """
