@@ -41,12 +41,13 @@ class StructureAnalysis:
             **kwargs: Additional keyword arguments for ase.io.read function.
         """
         if file_format not in ['vasp', 'lammps-data']:
-            raise ValueError("Unsupported file format. Use 'vasp' or 'lammps-data'.")
+            raise ValueError("Unsupported file format. Use 'vasp', 'lammps-data', or 'extxyz'.")
 
         default_args = {
             'vasp': {'index': None},
             'lammps-data': {'index': None,
-                            'style': 'atomic'}
+                            'style': 'atomic'},
+            'extxyz': {'index': None},
         }
 
         # Merge default arguments with user-provided kwargs
