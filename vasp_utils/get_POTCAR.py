@@ -28,14 +28,28 @@ my_dictionanry = mp_dictionary
 #my_dictionanry = custom_dictionary
 #check_potcar_repo(my_dictionary)
 
-with open(sys.argv[1], 'r') as o:
-    types = o.readlines()[5].split()
+try:
+    with open(sys.argv[1], 'r') as o:
+        types = o.readlines()[5].split()
 
-for i in range(len(types)):
-    if types[i] in my_dictionanry.keys():
-        types[i] = my_dictionanry[types[i]]
-
-if len(types) > 1:
-    os.system('cat ' + pot_path + '{'+','.join(types) + '}/POTCAR > POTCAR')
-else:
-    os.system('cat ' + pot_path + types[0] + '/POTCAR > POTCAR')
+    for i in range(len(types)):
+        if types[i] in my_dictionanry.keys():
+            types[i] = my_dictionanry[types[i]]
+    if len(types) > 1:
+        os.system('cat ' + PATH_POT + '{'+','.join(types) + '}/POTCAR > POTCAR')
+    else:
+        os.system('cat ' + PATH_POT + types[0] + '/POTCAR > POTCAR')
+      
+except IndexError:
+    print('Please ensure you provide a POSCAR file in the correct format.')
+    print('Command >> python (this.py) (YOUR_POSCAR)\n')
+    print('##### Example of a POSCAR file format #####')
+    print('Comment')
+    print('Scaling factor')
+    print('  Lattice[0][0] Lattice[0][1] Lattice[0][2]')
+    print('  Lattice[1][0] Lattice[1][1] Lattice[1][2]')
+    print('  Lattice[2][0] Lattice[2][1] Lattice[2][2]')
+    print('Speicies names <-- This line is required.')
+    print('Ions per species')
+    print('Selective dynamics <-- optional')
+    print(' Ion positions...')
