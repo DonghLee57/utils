@@ -67,17 +67,22 @@ class StructureAnalysis:
         local_nions = nions // size
         start = rank * local_nions
         end = nions if rank == size - 1 else (rank + 1) * local_nions
+        
         local_dist = np.zeros((end - start, nions))
+        local_size = local_dist.size
+        sizes = comm.allgather(local_size)
+        global_size = sum(sizes)
+        displacements = [sum(sizes[:i]) for i in range(size)]
+        global_dist = np.zeros(global_size).reshape([-1, local_dist.shape[1]])
         for i in range(start, end):
-            distances = atoms.get_distances(i, range(i, nions), mic=True)
-            local_dist[i - start, i:nions] = distances
-        full_dist = np.zeros((nions, nions))
-        comm.Allgatherv(local_dist, full_dist)
-        full_dist += full_dist.T - np.diag(np.diag(full_dist))
-        np.fill_diagonal(full_dist, np.inf)
-        res, bin_edges = np.histogram(full_dist, bins=bins)
+            local_dist[i - start, i:nions] = atoms.get_distances(i, range(i, nions), mic=True)
+        comm.Allgatherv(sendbuf=local_dist, recvbuf=(global_dist, sizes, displacements, MPI.DOUBLE))
+        global_dist += global_dist.T - np.diag(np.diag(global_dist))
+        np.fill_diagonal(global_dist, np.inf)
+        
+        res, bin_edges = np.histogram(global_dist, bins=bins)
         rdf += res / ((nions ** 2 / atoms.get_volume()) * 4 * np.pi * dr * bin_edges[:-1] ** 2)
-        coordination_numbers = np.sum(full_dist < cutoff, axis=1)
+        coordination_numbers = np.sum(global_dist < cutoff, axis=1)
         return rdf, bin_edges, coordination_numbers
 
     def calculate_rdf(self, rmax, cutoff=2.0, dr=0.02):
@@ -110,6 +115,7 @@ class StructureAnalysis:
         nelemA = len(idA)
         idB = np.where( sym == elemB )[0]
         nelemB = len(idB)
+        
         full_dist = np.zeros((nelemA, nelemB))
         local_nions = nelemA // size
         start = rank * local_nions
@@ -119,6 +125,20 @@ class StructureAnalysis:
             distances = atoms.get_distances(idA[i], idB, mic=True)
             local_dist[i - start] = distances
         comm.Allgatherv(local_dist, full_dist)
+        """
+        local_dist = np.zeros((end - start, nions))
+        local_size = local_dist.size
+        sizes = comm.allgather(local_size)
+        global_size = sum(sizes)
+        displacements = [sum(sizes[:i]) for i in range(size)]
+        global_dist = np.zeros(global_size).reshape([-1, local_dist.shape[1]])
+        for i in range(start, end):
+            local_dist[i - start, i:nions] = atoms.get_distances(i, range(i, nions), mic=True)
+        comm.Allgatherv(sendbuf=local_dist, recvbuf=(global_dist, sizes, displacements, MPI.DOUBLE))
+        global_dist += global_dist.T - np.diag(np.diag(global_dist))
+        np.fill_diagonal(global_dist, np.inf)
+        """
+        
         res, bin_edges = np.histogram(full_dist, bins=bins)
         prdf += res / (nelemA * nelemB / atoms.get_volume() * 4 * np.pi * dr * bin_edges[:-1]**2)
         if elemA == elemB:
