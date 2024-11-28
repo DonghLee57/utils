@@ -38,7 +38,8 @@ def merge_atoms(atom_obj, cutoff=0.1):
         if i not in to_remove and j not in to_remove:
             to_remove.add(min(i,j))
     to_remove = np.array(list(to_remove))
-    del atom_obj[to_remove]
+    if len(to_remove) > 0:
+        del atom_obj[to_remove]
     atom_obj = atom_obj[atom_obj.numbers.argsort()]
     return atom_obj
 
