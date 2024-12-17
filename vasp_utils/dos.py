@@ -1,59 +1,63 @@
 # Read POSCAR, OUTCAR, DOSCAR
-import sys
+import sys, subprocess
 import numpy as np
 import matplotlib.pyplot as plt
 
 def main():
-    # setting
+    # User setting
     energy_rng = [-2, 2]
-    plot_pdos = 0
+    plot_pdos = 1
     norbit = 9 # s, py, pz, px, dxy, dyz, dz2, dxz, x2-y2
-  
-    # initialization
+    fs = 12 
+
+    # Initialization
     symbols, ntypes = read_poscar('POSCAR')
     my_dos = DOS(doscar='DOSCAR', norbit=norbit)
+    my_dos.ISPIN = int( subprocess.check_output('grep ISPIN OUTCAR'.split(),universal_newlines=True).split()[2])
 
-    # Total DOS
+    # Plotting
     fig, ax = plt.subplots()
     energy = np.linspace(my_dos.EMIN, my_dos.EMAX, my_dos.NEDOS)
-    ax.plot(energy-my_dos.fermi, my_dos.TDOS[:,1],'k')
-    if my_dos.ISPIN == 2:
-        ax.plot(energy-my_dos.fermi, -my_dos.TDOS[:,2],'k')
-    else:
-        ax.set_ylim(bottom=0)
-
-    # Partial DOS (There maybe bugs...)
+    # Partial DOS
     if plot_pdos:
         PDOS = {}
         ATOMS = {}
-        for e in ntypes:
-            ATOMS[e] = [] 
-            for i, item in enumerate(symbols):
-                if e==item:
-                    ATOMS[e].append(i)
-
+        for sym, count in zip(symbols, ntypes):
+            idx = sum(ntypes[:ntypes.index(count)])
+            if sym not in ATOMS.keys():
+                ATOMS[sym]  = list(range(idx, idx+count))
+            else:
+                ATOMS[sym] += list(range(idx, idx+count))
+        #  (There maybe bugs...)
         if my_dos.ISPIN == 2:
-            ORBIT  = np.arange(1,norbit*my_dos.ISPIN+1,2)
-            ORBIT2 = np.arange(2,norbit*my_dos.ISPIN+1,2)
+            up   = np.arange(1,norbit*my_dos.ISPIN+1,2)
+            down = np.arange(2,norbit*my_dos.ISPIN+1,2)
             for e in ntypes:
-                PDOS[e] = np.sum(np.sum(my_dos.DOS[ATOMS[e]].T[ORBIT],axis=0),axis=1)
+                PDOS[e] = np.sum(np.sum(my_dos.DOS[ATOMS[e]].T[up],axis=0),axis=1)
                 ax.plot(energy-my_dos.fermi, PDOS[e])
             for e in ntypes:
-                PDOS[e] = np.sum(np.sum(my_dos.DOS[ATOMS[e]].T[ORBIT2],axis=0),axis=1)
+                PDOS[e] = np.sum(np.sum(my_dos.DOS[ATOMS[e]].T[down],axis=0),axis=1)
                 ax.plot(energy-my_dos.fermi, -PDOS[e],c='C'+str(ntypes.index(e)))
         else:
-            ORBIT  = np.arange(1,norbit*my_dos.ISPIN+1) 
-            for e in ntypes:
-                PDOS[e] = np.zeros(my_dos.NEDOS) 
-                for i in range(len(ATOMS[e])):
-                    PDOS[e] = np.sum(my_dos.DOS[ATOMS[e]].T[ORBIT,],axis=0)
-                ax.plot(energy-my_dos.fermi, PDOS[e],c='C'+str(c_index.index(e)))
+            up  = np.arange(1,norbit*my_dos.ISPIN+1) 
+            for sid, sym in enumerate(symbols):
+                PDOS[sym] = np.zeros(my_dos.NEDOS) 
+                for i in range(len(ATOMS[sym])):
+                    PDOS[sym] = np.sum(np.sum(my_dos.DOS[ATOMS[sym]].T[up],axis=0),axis=1)
+                ax.plot(energy-my_dos.fermi, PDOS[sym], c=f'C{sid}', label=sym)
+            ax.set_ylim(bottom=0)
+    # Total DOS
+    else:
+        ax.plot(energy-my_dos.fermi, my_dos.TDOS[:,1],'k')
+        if my_dos.ISPIN == 2:
+            ax.plot(energy-my_dos.fermi, -my_dos.TDOS[:,2],'k')
               
     ax.axvline(0,c='gray', ls='--')
     ax.set_xlim(energy_rng)
-    ax.set_xlabel(r'E-E$_f$ (eV)',fontsize=12)
-    ax.set_ylabel(r'DOS (a.u.)',fontsize=12)
+    ax.set_xlabel(r'E-E$_f$ (eV)',fontsize=fs)
+    ax.set_ylabel(r'DOS (a.u.)',fontsize=fs)
     ax.set_yticks([])
+    ax.legend(fontsize=fs)
     plt.tight_layout()
     plt.show()
 
@@ -95,9 +99,10 @@ class DOS:
 def read_poscar(poscar):
     try:
         with open(poscar, 'r') as o:
-            symbols = o.readlines()[5].split()
-            ntypes = o.readlines()[6].split()
-        return symbols, ntypes
+            tmp = o.readlines()
+        symbols = tmp[5].split()
+        ntypes = list(map(int, tmp[6].split()))
+        return symbols, ntypes      
     except IndexError:
         print('Please ensure you provide a POSCAR file in the correct format.')
         print('Command >> python (this.py) (YOUR_POSCAR)\n')
@@ -111,7 +116,6 @@ def read_poscar(poscar):
         print('Ions per species <-- This line is required.')
         print('Selective dynamics <-- optional')
         print(' Ion positions...')
-
 #--------------------------------------------------------------------------------------
 if __name__ == "__main__":
     main()
