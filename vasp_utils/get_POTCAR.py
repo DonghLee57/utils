@@ -4,9 +4,6 @@
 #
 import sys, os
 pot_path='your_POTCAR/PAW_PBE/'
-custom_dictionary={'K':'K_pv','Ca':'Ca_pv',\
-                   'Sr':'Sr_sv','Y':'Y_sv','Zr':'Zr_sv','Nb':'Nb_pv',\
-                   'Ba':'Ba_sv'}
 
 def check_potcar_repo(dic):
     keys = list(dic.keys())
@@ -25,16 +22,14 @@ g = {'Pr': 'Pr_3', 'Nd': 'Nd_3', 'Pm': 'Pm_3', 'Sm': 'Sm_3', 'Tb': 'Tb_3', 'Dy':
 mp_dictionary = {**a,**b,**c,**d,**e,**f,**g}
 
 my_dictionanry = mp_dictionary
-#my_dictionanry = custom_dictionary
-#check_potcar_repo(my_dictionary)
+check_potcar_repo(my_dictionary)
 
 try:
     with open(sys.argv[1], 'r') as o:
         types = o.readlines()[5].split()
-
-    for i in range(len(types)):
-        if types[i] in my_dictionanry.keys():
-            types[i] = my_dictionanry[types[i]]
+    for i, item in enumerate(types):
+        if item in my_dictionanry.keys():
+            types[i] = my_dictionanry[item]
     if len(types) > 1:
         os.system('cat ' + PATH_POT + '{'+','.join(types) + '}/POTCAR > POTCAR')
     else:
