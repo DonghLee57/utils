@@ -93,24 +93,25 @@ class DOS:
         return 0
 
 def read_poscar(poscar):
-try:
-    with open(poscar, 'r') as o:
-        symbols = o.readlines()[5].split()
-        ntypes = o.readlines()[6].split()
-    return symbols, ntypes      
-except IndexError:
-    print('Please ensure you provide a POSCAR file in the correct format.')
-    print('Command >> python (this.py) (YOUR_POSCAR)\n')
-    print('##### Example of a POSCAR file format #####')
-    print('Comment')
-    print('Scaling factor')
-    print('  Lattice[0][0] Lattice[0][1] Lattice[0][2]')
-    print('  Lattice[1][0] Lattice[1][1] Lattice[1][2]')
-    print('  Lattice[2][0] Lattice[2][1] Lattice[2][2]')
-    print('Speicies names <-- This line is required.')
-    print('Ions per species <-- This line is required.')
-    print('Selective dynamics <-- optional')
-    print(' Ion positions...')
+    try:
+        with open(poscar, 'r') as o:
+            symbols = o.readlines()[5].split()
+            ntypes = o.readlines()[6].split()
+        return symbols, ntypes
+    except IndexError:
+        print('Please ensure you provide a POSCAR file in the correct format.')
+        print('Command >> python (this.py) (YOUR_POSCAR)\n')
+        print('##### Example of a POSCAR file format #####')
+        print('Comment')
+        print('Scaling factor')
+        print('  Lattice[0][0] Lattice[0][1] Lattice[0][2]')
+        print('  Lattice[1][0] Lattice[1][1] Lattice[1][2]')
+        print('  Lattice[2][0] Lattice[2][1] Lattice[2][2]')
+        print('Speicies names <-- This line is required.')
+        print('Ions per species <-- This line is required.')
+        print('Selective dynamics <-- optional')
+        print(' Ion positions...')
+
 #--------------------------------------------------------------------------------------
 if __name__ == "__main__":
     main()
