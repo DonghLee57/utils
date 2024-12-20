@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import ase
 from ase.io import read, write
@@ -6,7 +7,7 @@ comm = MPI.COMM_WORLD
 size = comm.Get_size()
 rank = comm.Get_rank()
 
-import sys
+
 def main():
     my = StructureAnalysis()
     my.load_structure(sys.argv[1], sys.argv[2])
@@ -40,7 +41,7 @@ class StructureAnalysis:
             file_format (str): Format of the input file ('vasp' or 'lammps-data').
             **kwargs: Additional keyword arguments for ase.io.read function.
         """
-        if file_format not in ['vasp', 'lammps-data']:
+        if file_format not in ['vasp', 'lammps-data','extxyz']:
             raise ValueError("Unsupported file format. Use 'vasp', 'lammps-data', or 'extxyz'.")
 
         default_args = {
