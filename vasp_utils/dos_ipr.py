@@ -1,5 +1,6 @@
 # POSCAR & DOSCAR for (Partial) DOS
-# PROCAR for IPR
+# PROCAR for IPR (should be checked)
+# try-except when file read
 import sys, subprocess
 import numpy as np
 import matplotlib.pyplot as plt
