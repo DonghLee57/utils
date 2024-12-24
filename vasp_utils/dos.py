@@ -1,4 +1,5 @@
-# Read POSCAR, OUTCAR, DOSCAR
+# POSCAR & DOSCAR for (Partial) DOS
+# PROCAR for IPR
 import sys, subprocess
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,17 +8,20 @@ def main():
     # User setting
     energy_rng = [-3, 3]
     plot_pdos = 1
+    plot_ipr = 0
     norbit = 9 # s, py, pz, px, dxy, dyz, dz2, dxz, x2-y2
-    fs = 12 
-
+    fs = 12
+    
     # Initialization
     symbols, ntypes = read_poscar('POSCAR')
     my_dos = DOS(doscar='DOSCAR', norbit=norbit)
-    my_dos.ISPIN = int( subprocess.check_output('grep ISPIN OUTCAR'.split(),universal_newlines=True).split()[2])
+    my_dos.ISPIN = int(subprocess.check_output('grep ISPIN OUTCAR'.split(),universal_newlines=True).split()[2])
+    energy = np.linspace(my_dos.EMIN, my_dos.EMAX, my_dos.NEDOS)
+    if plot_ipr:
+        my_ipr = IPR(procar='PROCAR')
 
     # Plotting
-    fig, ax = plt.subplots()
-    energy = np.linspace(my_dos.EMIN, my_dos.EMAX, my_dos.NEDOS)
+    fig, ax = plt.subplots()    
     # Partial DOS
     if plot_pdos:
         ATOMS = {}
@@ -48,7 +52,15 @@ def main():
             ax.plot(energy-my_dos.fermi, -my_dos.TDOS[:,2],'k')
         else:
             ax.set_ylim(bottom=0)
-              
+
+    # Plot IPR
+    if plot_ipr:
+        ax_r = ax.twinx()
+        ax_r.stem(my_ipr.energies - my_dos.fermi, my_ipr.ipr_values, 
+                   linefmt='-', markerfmt=None, basefmt=None)
+        ax_r.set_ylabel('IPR', fontsize=fs)
+        ax_r.set_ylim(bottom=0)
+
     ax.axvline(0,c='gray', ls='--')
     ax.set_xlim(energy_rng)
     ax.set_xlabel(r'E-E$_f$ (eV)',fontsize=fs)
@@ -92,6 +104,54 @@ class DOS:
                 self.DOS[n][e] += np.array(list(map(float,dat.split())))
             n+=1
         return 0
+
+class IPR:
+    def __init__(self, procar='PROCAR'):
+        self.kpoints = 0
+        self.bands = 0
+        self.ions = 0
+        self.energies = []
+        self.ipr_values = []
+        self.read(procar)
+    
+    def read(self, procar):
+        with open(procar, 'r') as f:
+            lines = f.readlines()
+            # Read header information
+            header = lines[1].split()
+            self.kpoints = int(header[3])
+            self.bands = int(header[7])
+            self.ions = int(header[-1])
+            
+            data = []
+            for i in range(len(lines)):
+                if 'band ' in lines[i]:
+                    sum_sq = 0
+                    line = lines[i].split()
+                    energy = float(line[4])
+                    
+                    # Get normalization
+                    norm_line = lines[i+3+self.ions].split()
+                    norm = float(norm_line[-1])
+                    
+                    # Calculate IPR
+                    for j in range(self.ions):
+                        line = lines[i+j+3].split()
+                        proj_value = float(line[-1])
+                        sum_sq += proj_value**2
+                    
+                    # Normalize IPR
+                    if norm > 0:
+                        ipr = sum_sq/norm**2
+                    else:
+                        ipr = 0
+                        
+                    data.append([energy, ipr])
+            
+            # Sort by energy and separate into arrays
+            data.sort(key=lambda x: x[0])
+            self.energies = np.array([x[0] for x in data])
+            self.ipr_values = np.array([x[1] for x in data])
 
 def read_poscar(poscar):
     try:
