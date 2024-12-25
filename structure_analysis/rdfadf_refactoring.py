@@ -47,7 +47,6 @@ class StructureAnalysis:
         
         if file_format not in ['vasp', 'lammps-data','extxyz']:
             raise ValueError("Unsupported file format. Use 'vasp', 'lammps-data', or 'extxyz'.")
-
         default_args = {
             'vasp': {'index': None},
             'lammps-data': {'index': None,
@@ -57,7 +56,6 @@ class StructureAnalysis:
 
         # Merge default arguments with user-provided kwargs
         read_args = {**default_args[file_format], **kwargs}
-
         try:
             self.structure = read(filename, format=file_format, **read_args)
         except Exception as e:
@@ -68,7 +66,6 @@ class StructureAnalysis:
         local_nions = nions // size
         start = rank * local_nions
         end = nions if rank == size - 1 else (rank + 1) * local_nions
-        
         local_dist = np.zeros((end - start, nions))
         for i in range(start, end):
             local_dist[i - start, i:nions] = atoms.get_distances(i, range(i, nions), mic=True)
@@ -80,19 +77,16 @@ class StructureAnalysis:
         comm.Allgatherv(sendbuf=local_dist, recvbuf=(global_dist, sizes, displacements, MPI.DOUBLE))
         global_dist += global_dist.T - np.diag(np.diag(global_dist))
         np.fill_diagonal(global_dist, np.inf)
-        
         self.distance_matrix = global_dist
         return self.distance_matrix
     
     def calculate_single_rdf(self, atoms:ase.atom.Atom, rmax:float, cutoff:float, dr:float):
         if self.distance_matrix is None:
             self.distance_matrix = self.calculate_distance_matrix(atoms)
-
         bins = np.arange(dr / 2, rmax + dr / 2, dr)
         rdf = np.zeros(len(bins) - 1)
         if rmax > atoms.get_cell().diagonal().min() / 2:
             print('WARNING: The input maximum radius is over the half the smallest cell dimension.')
-            
         global_dist = self.distance_matrix
         nions = atoms.get_global_number_of_atoms()
         res, bin_edges = np.histogram(global_dist, bins=bins)
@@ -122,7 +116,6 @@ class StructureAnalysis:
     def calculate_single_prdf(self, atoms:ase.atom.Atom, targets:tuple, rmax:float, cutoff:float, dr:float):
         if self.distance_matrix is None:
             self.distance_matrix = self.calculate_distance_matrix(atoms)
-
         (elemA, elemB) = targets
         bins = np.arange(dr / 2, rmax + dr / 2, dr)
         prdf = np.zeros(len(bins) - 1)
@@ -133,7 +126,6 @@ class StructureAnalysis:
         nelemA = len(idA)
         idB = np.where( sym == elemB )[0]
         nelemB = len(idB)
-
         global_dist = self.distance_matrix[idA][:, idB]
         res, bin_edges = np.histogram(global_dist, bins=bins)
         prdf += res / (nelemA * nelemB / atoms.get_volume() * 4 * np.pi * dr * bin_edges[:-1] ** 2)
@@ -163,16 +155,17 @@ class StructureAnalysis:
         return np.column_stack((bin_edges[:-1], prdf)), np.column_stack((cn_distribution[1][:-1], cn_distribution[0], cn_distribution[0]/cn_sum))    
     
     def calculate_angles(self, atoms, triplet, cutoff):
+        if self.distance_matrix is None:
+            self.distance_matrix = self.calculate_distance_matrix(atoms)
         theta = []
         symbol_idx = {s: [] for s in triplet}
         for idx, atom in enumerate(atoms):
             if atom.symbol in symbol_idx:
                 symbol_idx[atom.symbol].append(idx)
-
         psize = len(symbol_idx[triplet[0]]) // size
         for c in range(rank * psize, (rank + 1) * psize if rank != size - 1 else len(symbol_idx[triplet[0]])):
             center_idx = symbol_idx[triplet[0]][c]
-            distances = atoms.get_distances(center_idx, range(len(atoms)), mic=True)
+            distances = self.distance_matrix[center_idx]
             vectors = atoms.get_distances(center_idx, range(len(atoms)), mic=True, vector=True)
             for n in symbol_idx[triplet[1]]:
                 if n == c: continue
