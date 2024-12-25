@@ -31,6 +31,7 @@ class StructureAnalysis:
     def __init__(self):
         self.structure = None
         self.cn_lim = [0, 10]
+        self.distance_matrix = None
 
     def load_structure(self, filename: str, file_format: str, **kwargs):
         """
@@ -41,6 +42,9 @@ class StructureAnalysis:
             file_format (str): Format of the input file ('vasp' or 'lammps-data').
             **kwargs: Additional keyword arguments for ase.io.read function.
         """
+        # Reinitialize the distance_matrix each time the structure is reloaded
+        self.distance_matrix = None  
+        
         if file_format not in ['vasp', 'lammps-data','extxyz']:
             raise ValueError("Unsupported file format. Use 'vasp', 'lammps-data', or 'extxyz'.")
 
@@ -58,29 +62,39 @@ class StructureAnalysis:
             self.structure = read(filename, format=file_format, **read_args)
         except Exception as e:
             raise IOError(f"Failed to load structure: {str(e)}")
-    
-    def calculate_single_rdf(self, atoms:ase.atom.Atom, rmax:float, cutoff:float, dr:float):
-        bins = np.arange(dr / 2, rmax + dr / 2, dr)
-        rdf = np.zeros(len(bins) - 1)
-        if rmax > atoms.get_cell().diagonal().min() / 2:
-            print('WARNING: The input maximum radius is over the half the smallest cell dimension.')
+
+    def calculate_distance_matrix(self, atoms: ase.atom.Atom):
         nions = atoms.get_global_number_of_atoms()
         local_nions = nions // size
         start = rank * local_nions
         end = nions if rank == size - 1 else (rank + 1) * local_nions
         
         local_dist = np.zeros((end - start, nions))
+        for i in range(start, end):
+            local_dist[i - start, i:nions] = atoms.get_distances(i, range(i, nions), mic=True)
         local_size = local_dist.size
         sizes = comm.allgather(local_size)
         global_size = sum(sizes)
         displacements = [sum(sizes[:i]) for i in range(size)]
         global_dist = np.zeros(global_size).reshape([-1, local_dist.shape[1]])
-        for i in range(start, end):
-            local_dist[i - start, i:nions] = atoms.get_distances(i, range(i, nions), mic=True)
         comm.Allgatherv(sendbuf=local_dist, recvbuf=(global_dist, sizes, displacements, MPI.DOUBLE))
         global_dist += global_dist.T - np.diag(np.diag(global_dist))
         np.fill_diagonal(global_dist, np.inf)
         
+        self.distance_matrix = global_dist
+        return self.distance_matrix
+    
+    def calculate_single_rdf(self, atoms:ase.atom.Atom, rmax:float, cutoff:float, dr:float):
+        if self.distance_matrix is None:
+            self.distance_matrix = self.calculate_distance_matrix(atoms)
+
+        bins = np.arange(dr / 2, rmax + dr / 2, dr)
+        rdf = np.zeros(len(bins) - 1)
+        if rmax > atoms.get_cell().diagonal().min() / 2:
+            print('WARNING: The input maximum radius is over the half the smallest cell dimension.')
+            
+        global_dist = self.distance_matrix
+        nions = atoms.get_global_number_of_atoms()
         res, bin_edges = np.histogram(global_dist, bins=bins)
         rdf += res / ((nions ** 2 / atoms.get_volume()) * 4 * np.pi * dr * bin_edges[:-1] ** 2)
         coordination_numbers = np.sum(global_dist < cutoff, axis=1)
@@ -106,6 +120,9 @@ class StructureAnalysis:
         return np.column_stack((bin_edges[:-1], rdf)), np.column_stack((cn_distribution[1][:-1], cn_distribution[0], cn_distribution[0]/cn_sum))
 
     def calculate_single_prdf(self, atoms:ase.atom.Atom, targets:tuple, rmax:float, cutoff:float, dr:float):
+        if self.distance_matrix is None:
+            self.distance_matrix = self.calculate_distance_matrix(atoms)
+
         (elemA, elemB) = targets
         bins = np.arange(dr / 2, rmax + dr / 2, dr)
         prdf = np.zeros(len(bins) - 1)
@@ -117,25 +134,9 @@ class StructureAnalysis:
         idB = np.where( sym == elemB )[0]
         nelemB = len(idB)
 
-        local_nions = nelemA // size
-        start = rank * local_nions
-        end = nelemA if rank == size - 1 else (rank + 1) * local_nions
-        local_dist = np.zeros((end - start, nelemB))
-        for i in range(start, end):
-            distances = atoms.get_distances(idA[i], idB, mic=True)
-            local_dist[i - start] = distances
-        local_size = local_dist.size
-        sizes = comm.allgather(local_size)
-        global_size = sum(sizes)
-        displacements = [sum(sizes[:i]) for i in range(size)]
-        global_dist = np.zeros(global_size).reshape([-1, local_dist.shape[1]])
-        comm.Allgatherv(sendbuf=local_dist, recvbuf=(global_dist, sizes, displacements, MPI.DOUBLE))
-        global_dist += global_dist.T - np.diag(np.diag(global_dist))
-        np.fill_diagonal(global_dist, np.inf)
-        
+        global_dist = self.distance_matrix[idA][:, idB]
         res, bin_edges = np.histogram(global_dist, bins=bins)
         prdf += res / (nelemA * nelemB / atoms.get_volume() * 4 * np.pi * dr * bin_edges[:-1] ** 2)
-    
         if elemA == elemB:
             coordination_numbers = np.sum(global_dist < cutoff, axis=1) - 1
         else:
