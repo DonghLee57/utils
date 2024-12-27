@@ -44,7 +44,7 @@ def main():
             up  = np.arange(1,norbit*my_dos.ISPIN+1) 
             for sid, sym in enumerate(symbols): 
                 pdos = np.sum(np.sum(my_dos.DOS[ATOMS[sym]].T[up],axis=0),axis=1)
-                ax.plot(energy-my_dos.fermi, pdos, c=f'C{sid}', label=sym)
+                ax.plot(energy-my_dos.fermi, pdos, c=f'C{sid}', label='Total DOS')
             ax.set_ylim(bottom=0)
     # Total DOS
     else:
@@ -57,8 +57,8 @@ def main():
     # Plot IPR
     if plot_ipr:
         ax_r = ax.twinx()
-        ax_r.stem(my_ipr.energies - my_dos.fermi, my_ipr.ipr_values, 
-                   linefmt='-', markerfmt=None, basefmt=None)
+        stem_container = ax_r.stem(my_ipr.energies - my_dos.fermi, my_ipr.ipr_values, markerfmt=' ')
+        stem_container.stemlines.set_alpha(0.2)
         ax_r.set_ylabel('IPR', fontsize=fs)
         ax_r.set_ylim(bottom=0)
 
@@ -123,14 +123,14 @@ class IPR:
             self.kpoints = int(header[3])
             self.bands = int(header[7])
             self.ions = int(header[-1])
-            
+
             data = []
             for i in range(len(lines)):
                 if 'band ' in lines[i]:
                     sum_sq = 0
                     line = lines[i].split()
                     energy = float(line[4])
-                    
+
                     # Get normalization
                     norm_line = lines[i+3+self.ions].split()
                     norm = float(norm_line[-1])
@@ -146,9 +146,7 @@ class IPR:
                         ipr = sum_sq/norm**2
                     else:
                         ipr = 0
-                        
                     data.append([energy, ipr])
-            
             # Sort by energy and separate into arrays
             data.sort(key=lambda x: x[0])
             self.energies = np.array([x[0] for x in data])
