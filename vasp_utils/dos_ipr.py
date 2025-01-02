@@ -9,12 +9,13 @@ def main():
     # User setting
     energy_rng = [-3, 3]
     plot_pdos = 1
+    plot_ldos = 0
     plot_ipr = 0
     norbit = 9 # s, py, pz, px, dxy, dyz, dz2, dxz, x2-y2
     fs = 12
     
     # Initialization
-    symbols, ntypes = read_poscar('POSCAR')
+    symbols, ntypes = get_poscar_header('POSCAR')
     my_dos = DOS(doscar='DOSCAR', norbit=norbit)
     my_dos.ISPIN = int(subprocess.check_output('grep ISPIN OUTCAR'.split(),universal_newlines=True).split()[2])
     energy = np.linspace(my_dos.EMIN, my_dos.EMAX, my_dos.NEDOS)
@@ -22,9 +23,22 @@ def main():
         my_ipr = IPR(procar='PROCAR')
 
     # Plotting
-    fig, ax = plt.subplots()    
+    fig, ax = plt.subplots()
+    # Local DOS
+    if plot_ldos:
+        poscar = read('POSCAR')
+        z_coords = poscar.positions.T[2]
+        site_dos = np.sum(my_dos.DOS[:, :, :], axis=2).T
+        z_grid, e_grid = np.meshgrid(z_coords, energy)
+        ldos_norm = site_dos / np.max(site_dos)
+        cmesh = ax.pcolormesh(z_grid, e_grid - my_dos.fermi,
+                              ldos_norm, cmap='rainbow', shading='auto')
+        fig.colorbar(cmesh, label="LDOS")
+        ax.set_xlabel("Direction (Å)", fontsize=fs)
+        ax.set_ylabel("Energy (eV)", fontsize=fs)
+        ax.set_title("Local Density of States", fontsize=fs)
     # Partial DOS
-    if plot_pdos:
+    elif plot_pdos:
         ATOMS = {}
         for sym, count in zip(symbols, ntypes):
             idx = sum(ntypes[:ntypes.index(count)])
@@ -152,7 +166,7 @@ class IPR:
             self.energies = np.array([x[0] for x in data])
             self.ipr_values = np.array([x[1] for x in data])
 
-def read_poscar(poscar):
+def get_poscar_header(poscar):
     try:
         with open(poscar, 'r') as o:
             tmp = o.readlines()
