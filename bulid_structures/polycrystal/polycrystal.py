@@ -88,7 +88,8 @@ def get_grain_configuration(user_config=None):
                 df.loc[row] = tmp.loc[i]
                 df.loc[row,'number_of_structure'] = 1
             else:
-                df.loc[row] = [tmp.loc[i,'structure_file'], 1, 'R', 'R', 'R', 'R', 'R', 'R']
+                df.loc[row] = [tmp.loc[i,'structure_file'], 1, tmp.loc[i,'position_x'], tmp.loc[i,'position_y'], tmp.loc[i,'position_z'],
+                                                               tmp.loc[i,'euler_angle_x'], tmp.loc[i,'euler_angle_y'], tmp.loc[i,'euler_angle_z']]
             row += 1
     return df
     
