@@ -13,7 +13,8 @@ def main():
     my = StructureAnalysis()
     my.load_structure(sys.argv[1], sys.argv[2])
     #my.load_structure('POSCAR', 'vasp')
-    #my.load_structure('input.lammps', 'lammps-data')
+    #my.load_structure('test.lammps', 'lammps-data')
+    #my.load_structure('test.extxyz', 'extxyz',**{'input':'::'})
     
     rdf, cn_distribution = my.calculate_rdf(6, 2.5, 0.005)
     np.savetxt('rdf.out', rdf, fmt='%.4f')
@@ -134,9 +135,14 @@ class StructureAnalysis:
                 rdf += single_rdf
                 coordination_numbers[idx*nions: (idx+1)*nions] = single_coordination_numbers
             rdf /= nimg
-        cn_distribution = np.histogram(coordination_numbers, bins=np.arange(self.cn_lim[0], self.cn_lim[1], 1))
-        cn_sum = np.sum(cn_distribution[0])
-        return np.column_stack((bin_edges[:-1], rdf)), np.column_stack((cn_distribution[1][:-1], cn_distribution[0], cn_distribution[0]/cn_sum))
+        coordination_numbers = coordination_numbers.astype(int)
+        min_cn, max_cn = self.cn_lim[0], self.cn_lim[1]
+        cn_counts = np.bincount(coordination_numbers, minlength=max_cn - min_cn + 1)
+        if np.max(coordination_numbers) > max_cn:
+            print(f"WARNING: Some CN > {max_cn}, not included in distribution.")
+        cn_labels = np.arange(min_cn, max_cn + 1)
+        cn_sum = np.sum(cn_counts)
+        return np.column_stack((bin_edges[:-1], rdf)), np.column_stack((cn_labels, cn_counts, cn_counts / cn_sum if cn_sum > 0 else cn_counts))
 
     def calculate_single_prdf(self, atoms: ase.atoms.Atoms, targets: tuple, rmax: float, cutoff: float, dr: float, idx: int = None):
         distance_matrix = self.calculate_distance_matrix(atoms, idx)
@@ -171,9 +177,14 @@ class StructureAnalysis:
                 prdf += single_prdf
                 coordination_numbers[idx*nions: (idx+1)*nions] = single_coordination_numbers
             prdf /= nimg
-        cn_distribution = np.histogram(coordination_numbers, bins=np.arange(self.cn_lim[0], self.cn_lim[1], 1))
-        cn_sum = np.sum(cn_distribution[0])
-        return np.column_stack((bin_edges[:-1], prdf)), np.column_stack((cn_distribution[1][:-1], cn_distribution[0], cn_distribution[0]/cn_sum))    
+        coordination_numbers = coordination_numbers.astype(int)
+        min_cn, max_cn = self.cn_lim[0], self.cn_lim[1]
+        cn_counts = np.bincount(coordination_numbers, minlength=max_cn - min_cn + 1)
+        if np.max(coordination_numbers) > max_cn:
+            print(f"WARNING: Some CN > {max_cn}, not included in distribution.")
+        cn_labels = np.arange(min_cn, max_cn + 1)
+        cn_sum = np.sum(cn_counts)
+        return np.column_stack((bin_edges[:-1], rdf)), np.column_stack((cn_labels, cn_counts, cn_counts / cn_sum if cn_sum > 0 else cn_counts))
     
     def calculate_angles(self, atoms, triplet, cutoff, idx: int = None):
         distance_matrix = self.calculate_distance_matrix(atoms, idx)
