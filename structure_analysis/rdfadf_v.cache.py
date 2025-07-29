@@ -1,4 +1,5 @@
-import sys
+import sys, os
+from pathlib import Path
 import numpy as np
 import ase
 from ase.io import read, write
@@ -32,6 +33,8 @@ class StructureAnalysis:
         self.structure = None
         self.cn_lim = [0, 10]
         self.distance_matrices = {}
+        self.cache_dir = '__cache__'
+        self.filename = None
 
     def load_structure(self, filename: str, file_format: str, **kwargs):
         """
@@ -43,7 +46,9 @@ class StructureAnalysis:
             **kwargs: Additional keyword arguments for ase.io.read function.
         """
         # Reinitialize the distance_matrix each time the structure is reloaded
-        self.distance_matrix = None  
+        self.distance_matrices.clear()
+        self.filename = Path(filename).stem
+        os.makedirs(self.cache_dir, exist_ok=True)
         
         if file_format not in ['vasp', 'lammps-data','extxyz']:
             raise ValueError("Unsupported file format. Use 'vasp', 'lammps-data', or 'extxyz'.")
@@ -61,11 +66,24 @@ class StructureAnalysis:
         except Exception as e:
             raise IOError(f"Failed to load structure: {str(e)}")
 
-    def calculate_distance_matrix(self, atoms: ase.atoms.Atoms):
+    def calculate_distance_matrix(self, atoms: ase.atoms.Atoms, idx: int = None):
+        if idx is None:
+            idx = 0
         atoms_id = id(atoms)
+        cache_file = f"{self.cache_dir}/{self.filename}_structure_{idx}.npy"
         if atoms_id in self.distance_matrices:
             return self.distance_matrices[atoms_id]
 
+        global_dist = None
+        if rank == 0:
+            if os.path.exists(cache_file):
+                global_dist = np.load(cache_file)
+                print(f"Loaded from cache: {cache_file}")
+        global_dist = comm.bcast(global_dist, root=0)
+        if global_dist is not None:
+            self.distance_matrices[atoms_id] = global_dist
+            return global_dist
+        
         nions = atoms.get_global_number_of_atoms()
         local_nions = nions // size
         start = rank * local_nions
@@ -81,11 +99,15 @@ class StructureAnalysis:
         comm.Allgatherv(sendbuf=local_dist, recvbuf=(global_dist, sizes, displacements, MPI.DOUBLE))
         global_dist += global_dist.T - np.diag(np.diag(global_dist))
         np.fill_diagonal(global_dist, np.inf)
+        
+        if rank == 0:
+            np.save(cache_file, global_dist)
+            print(f"Saved to cache: {cache_file}")
         self.distance_matrices[atoms_id] = global_dist
         return global_dist
     
-    def calculate_single_rdf(self, atoms: ase.atoms.Atoms, rmax: float, cutoff: float, dr: float):
-        distance_matrix = self.calculate_distance_matrix(atoms)
+    def calculate_single_rdf(self, atoms: ase.atoms.Atoms, rmax: float, cutoff: float, dr: float, idx: int = None):
+        distance_matrix = self.calculate_distance_matrix(atoms, idx)
         bins = np.arange(dr / 2, rmax + dr / 2, dr)
         rdf = np.zeros(len(bins) - 1)
         if rmax > atoms.get_cell().diagonal().min() / 2:
@@ -108,7 +130,7 @@ class StructureAnalysis:
                 if idx == 0: 
                     nions = atoms.get_global_number_of_atoms()
                     coordination_numbers = np.zeros(nimg*nions)
-                single_rdf, bin_edges, single_coordination_numbers = self.calculate_single_rdf(atoms, rmax, cutoff, dr)
+                single_rdf, bin_edges, single_coordination_numbers = self.calculate_single_rdf(atoms, rmax, cutoff, dr, idx=idx)
                 rdf += single_rdf
                 coordination_numbers[idx*nions: (idx+1)*nions] = single_coordination_numbers
             rdf /= nimg
@@ -116,8 +138,8 @@ class StructureAnalysis:
         cn_sum = np.sum(cn_distribution[0])
         return np.column_stack((bin_edges[:-1], rdf)), np.column_stack((cn_distribution[1][:-1], cn_distribution[0], cn_distribution[0]/cn_sum))
 
-    def calculate_single_prdf(self, atoms: ase.atoms.Atoms, targets: tuple, rmax: float, cutoff: float, dr: float):
-        distance_matrix = self.calculate_distance_matrix(atoms)
+    def calculate_single_prdf(self, atoms: ase.atoms.Atoms, targets: tuple, rmax: float, cutoff: float, dr: float, idx: int = None):
+        distance_matrix = self.calculate_distance_matrix(atoms, idx)
         (elemA, elemB) = targets
         bins = np.arange(dr / 2, rmax + dr / 2, dr)
         prdf = np.zeros(len(bins) - 1)
@@ -145,7 +167,7 @@ class StructureAnalysis:
                 if idx == 0: 
                     nions = atoms.get_global_number_of_atoms()
                     coordination_numbers = np.zeros(nimg*nions)
-                single_prdf, bin_edges, single_coordination_numbers = self.calculate_single_prdf(atoms, targets, rmax, cutoff, dr)
+                single_prdf, bin_edges, single_coordination_numbers = self.calculate_single_prdf(atoms, targets, rmax, cutoff, dr, idx=idx)
                 prdf += single_prdf
                 coordination_numbers[idx*nions: (idx+1)*nions] = single_coordination_numbers
             prdf /= nimg
@@ -153,8 +175,8 @@ class StructureAnalysis:
         cn_sum = np.sum(cn_distribution[0])
         return np.column_stack((bin_edges[:-1], prdf)), np.column_stack((cn_distribution[1][:-1], cn_distribution[0], cn_distribution[0]/cn_sum))    
     
-    def calculate_angles(self, atoms, triplet, cutoff):
-        distance_matrix = self.calculate_distance_matrix(atoms)
+    def calculate_angles(self, atoms, triplet, cutoff, idx: int = None):
+        distance_matrix = self.calculate_distance_matrix(atoms, idx)
         theta = []
         symbol_idx = {s: [] for s in triplet}
         for idx, atom in enumerate(atoms):
@@ -186,7 +208,7 @@ class StructureAnalysis:
             nimg = len(self.structure)
             theta = []
             for idx, atoms in enumerate(self.structure):
-                single_theta = self.calculate_angles(atoms, triplet, cutoff)
+                single_theta = self.calculate_angles(atoms, triplet, cutoff, idx=idx)
                 single_theta = comm.reduce(single_theta, op=MPI.SUM, root=0)
                 if rank == 0: theta += single_theta
         theta = comm.bcast(theta,root=0)
