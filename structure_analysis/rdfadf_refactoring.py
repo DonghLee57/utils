@@ -31,7 +31,7 @@ class StructureAnalysis:
     def __init__(self):
         self.structure = None
         self.cn_lim = [0, 10]
-        self.distance_matrix = None
+        self.distance_matrices = {}
 
     def load_structure(self, filename: str, file_format: str, **kwargs):
         """
@@ -61,7 +61,11 @@ class StructureAnalysis:
         except Exception as e:
             raise IOError(f"Failed to load structure: {str(e)}")
 
-    def calculate_distance_matrix(self, atoms: ase.atom.Atom):
+    def calculate_distance_matrix(self, atoms: ase.atoms.Atoms):
+        atoms_id = id(atoms)
+        if atoms_id in self.distance_matrices:
+            return self.distance_matrices[atoms_id]
+
         nions = atoms.get_global_number_of_atoms()
         local_nions = nions // size
         start = rank * local_nions
@@ -77,17 +81,16 @@ class StructureAnalysis:
         comm.Allgatherv(sendbuf=local_dist, recvbuf=(global_dist, sizes, displacements, MPI.DOUBLE))
         global_dist += global_dist.T - np.diag(np.diag(global_dist))
         np.fill_diagonal(global_dist, np.inf)
-        self.distance_matrix = global_dist
-        return self.distance_matrix
+        self.distance_matrices[atoms_id] = global_dist
+        return global_dist
     
-    def calculate_single_rdf(self, atoms:ase.atom.Atom, rmax:float, cutoff:float, dr:float):
-        if self.distance_matrix is None:
-            self.distance_matrix = self.calculate_distance_matrix(atoms)
+    def calculate_single_rdf(self, atoms: ase.atoms.Atoms, rmax: float, cutoff: float, dr: float):
+        distance_matrix = self.calculate_distance_matrix(atoms)
         bins = np.arange(dr / 2, rmax + dr / 2, dr)
         rdf = np.zeros(len(bins) - 1)
         if rmax > atoms.get_cell().diagonal().min() / 2:
             print('WARNING: The input maximum radius is over the half the smallest cell dimension.')
-        global_dist = self.distance_matrix
+        global_dist = distance_matrix
         nions = atoms.get_global_number_of_atoms()
         res, bin_edges = np.histogram(global_dist, bins=bins)
         rdf += res / ((nions ** 2 / atoms.get_volume()) * 4 * np.pi * dr * bin_edges[:-1] ** 2)
@@ -113,9 +116,8 @@ class StructureAnalysis:
         cn_sum = np.sum(cn_distribution[0])
         return np.column_stack((bin_edges[:-1], rdf)), np.column_stack((cn_distribution[1][:-1], cn_distribution[0], cn_distribution[0]/cn_sum))
 
-    def calculate_single_prdf(self, atoms:ase.atom.Atom, targets:tuple, rmax:float, cutoff:float, dr:float):
-        if self.distance_matrix is None:
-            self.distance_matrix = self.calculate_distance_matrix(atoms)
+    def calculate_single_prdf(self, atoms: ase.atoms.Atoms, targets: tuple, rmax: float, cutoff: float, dr: float):
+        distance_matrix = self.calculate_distance_matrix(atoms)
         (elemA, elemB) = targets
         bins = np.arange(dr / 2, rmax + dr / 2, dr)
         prdf = np.zeros(len(bins) - 1)
@@ -126,13 +128,10 @@ class StructureAnalysis:
         nelemA = len(idA)
         idB = np.where( sym == elemB )[0]
         nelemB = len(idB)
-        global_dist = self.distance_matrix[idA][:, idB]
+        global_dist = distance_matrix[idA][:, idB]
         res, bin_edges = np.histogram(global_dist, bins=bins)
         prdf += res / (nelemA * nelemB / atoms.get_volume() * 4 * np.pi * dr * bin_edges[:-1] ** 2)
-        if elemA == elemB:
-            coordination_numbers = np.sum(global_dist < cutoff, axis=1) - 1
-        else:
-            coordination_numbers = np.sum(global_dist < cutoff, axis=1)
+        coordination_numbers = np.sum(global_dist < cutoff, axis=1)
         return prdf, bin_edges, coordination_numbers
 
     def calculate_prdf(self, targets:tuple, rmax:float, cutoff:float=2.0, dr:float=0.02):
@@ -155,8 +154,7 @@ class StructureAnalysis:
         return np.column_stack((bin_edges[:-1], prdf)), np.column_stack((cn_distribution[1][:-1], cn_distribution[0], cn_distribution[0]/cn_sum))    
     
     def calculate_angles(self, atoms, triplet, cutoff):
-        if self.distance_matrix is None:
-            self.distance_matrix = self.calculate_distance_matrix(atoms)
+        distance_matrix = self.calculate_distance_matrix(atoms)
         theta = []
         symbol_idx = {s: [] for s in triplet}
         for idx, atom in enumerate(atoms):
@@ -165,7 +163,7 @@ class StructureAnalysis:
         psize = len(symbol_idx[triplet[0]]) // size
         for c in range(rank * psize, (rank + 1) * psize if rank != size - 1 else len(symbol_idx[triplet[0]])):
             center_idx = symbol_idx[triplet[0]][c]
-            distances = self.distance_matrix[center_idx]
+            distances = distance_matrix[center_idx]
             vectors = atoms.get_distances(center_idx, range(len(atoms)), mic=True, vector=True)
             for n in symbol_idx[triplet[1]]:
                 if n == c: continue
