@@ -171,7 +171,8 @@ class StructureAnalysis:
             prdf = np.zeros(len(bins) - 1)
             for idx, atoms in enumerate(self.structure):
                 if idx == 0: 
-                    nions = atoms.get_global_number_of_atoms()
+                    sym = np.array(atoms.get_chemical_symbols())
+                    nions = len(np.where( sym == elemA )[0])
                     coordination_numbers = np.zeros(nimg*nions)
                 single_prdf, bin_edges, single_coordination_numbers = self.calculate_single_prdf(atoms, targets, rmax, cutoff, dr, idx=idx)
                 prdf += single_prdf
