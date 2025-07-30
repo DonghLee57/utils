@@ -184,7 +184,7 @@ class StructureAnalysis:
             print(f"WARNING: Some CN > {max_cn}, not included in distribution.")
         cn_labels = np.arange(min_cn, max_cn + 1)
         cn_sum = np.sum(cn_counts)
-        return np.column_stack((bin_edges[:-1], rdf)), np.column_stack((cn_labels, cn_counts, cn_counts / cn_sum if cn_sum > 0 else cn_counts))
+        return np.column_stack((bin_edges[:-1], prdf)), np.column_stack((cn_labels, cn_counts, cn_counts / cn_sum if cn_sum > 0 else cn_counts))
     
     def calculate_angles(self, atoms, triplet, cutoff, idx: int = None):
         distance_matrix = self.calculate_distance_matrix(atoms, idx)
