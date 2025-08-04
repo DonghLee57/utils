@@ -3,68 +3,14 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 def main():
-    """
-    Main function to sort atomic structures for NEB calculations.
-    Separates fixed (slab) and mobile atoms based on z-coordinate threshold,
-    then sorts fixed atoms to minimize displacement between initial and final states.
-    """
-    # File paths
-    poscar1_path = "POSCAR_initial"        # Initial state POSCAR
-    poscar2_path = "POSCAR_final"          # Final state POSCAR  
-    output1_path = "POSCAR_initial_sorted" # Output file name for initial
-    output2_path = "POSCAR_final_sorted"   # Output file name for final
-  
-    # Z-coordinate threshold to distinguish fixed layer (slab) and mobile atoms (Cartesian)
-    # IMPORTANT: Please check and modify this value according to your system
-    # Example: atoms with z <= 15.0 are considered as fixed layer
+    poscar1 = 'POSCAR_initial'
+    poscar2 = 'POSCAR_final'
     z_threshold = 15.0
-    
-    try:
-        atoms1 = read(poscar1_path)
-        atoms2 = read(poscar2_path)
-        pos1 = atoms1.get_positions()
-        pos2 = atoms2.get_positions()
-        
-        # Separate indices for atoms1 (initial structure)
-        fixed_idx1 = [i for i, p in enumerate(pos1) if p[2] >= z_threshold]
-        mobile_idx1 = [i for i, p in enumerate(pos1) if p[2] < z_threshold]
-        
-        # Separate indices for atoms2 (final structure)
-        fixed_idx2 = [i for i, p in enumerate(pos2) if p[2] >= z_threshold]
-        mobile_idx2 = [i for i, p in enumerate(pos2) if p[2] < z_threshold]
-        
-        # Check if atom counts match (crucial for consistency)
-        assert len(fixed_idx1) == len(fixed_idx2), \
-            f"Fixed layer atom count mismatch: initial={len(fixed_idx1)}, final={len(fixed_idx2)}"
-        assert len(mobile_idx1) == len(mobile_idx2), \
-            f"Mobile layer atom count mismatch: initial={len(mobile_idx1)}, final={len(mobile_idx2)}"
-            
-        print(f"Structure analysis:")
-        print(f"  Fixed layer atoms: {len(fixed_idx1)} (z >= {z_threshold} Å)")
-        print(f"  Mobile layer atoms: {len(mobile_idx1)} (z < {z_threshold} Å)")
-        
-        sorted_fixed_idx2 = sort_by_min_distance(atoms1, atoms2, fixed_idx1, fixed_idx2)
-        final_order_idx2 = sorted_fixed_idx2 + mobile_idx2
-        atoms2_sorted = atoms2[final_order_idx2]
-        
-        final_order_idx1 = fixed_idx1 + mobile_idx1
-        atoms1_sorted = atoms1[final_order_idx1]
-        
-        # 6. Save both sorted structures to files
-        write(output1_path, atoms1_sorted, format="vasp")
-        write(output2_path, atoms2_sorted, format="vasp")
-        
-        print(f"Structure sorting completed:")
-        print(f"  Initial structure saved as '{output1_path}'")
-        print(f"  Final structure saved as '{output2_path}'")
-        
-    except FileNotFoundError as e:
-        print(f"Error: Could not find input file - {e}")
-    except AssertionError as e:
-        print(f"Error: {e}")
-        print("Please check your input structures and z_threshold value.")
-    except Exception as e:
-        print(f"Unexpected error occurred: {e}")
+   
+    a1, a2 = save_sorted(poscar1, poscar2, z_threshold)
+
+    n_imgs = 5
+    neb_images = interpolate_NEB_images(a1, a2, n_imgs)    
 
 def sort_by_min_distance(ref_atoms, target_atoms, idx_ref, idx_target):
     """
@@ -123,7 +69,65 @@ def set_origin(atoms, index):
     """
     return atoms.translate(-atoms.get_positions()[index])
 
-
+def save_sorted(initial_path, final_path, z_threshold):
+    """
+    Sort atomic structures for NEB calculations.
+    Separates fixed (slab) and mobile atoms based on z-coordinate threshold,
+    then sorts fixed atoms to minimize displacement between initial and final states.
+    """
+    # File paths
+    poscar1_path = initial_path        # Initial state POSCAR
+    poscar2_path = final_path          # Final state POSCAR  
+    output1_path = f"{initial_path}_sorted" # Output file name for initial
+    output2_path = f"{final_path}_sorted"   # Output file name for final
+   
+    try:
+        atoms1 = read(poscar1_path)
+        atoms2 = read(poscar2_path)
+        pos1 = atoms1.get_positions()
+        pos2 = atoms2.get_positions()
+        
+        # Separate indices for atoms1 (initial structure)
+        fixed_idx1 = [i for i, p in enumerate(pos1) if p[2] >= z_threshold]
+        mobile_idx1 = [i for i, p in enumerate(pos1) if p[2] < z_threshold]
+        
+        # Separate indices for atoms2 (final structure)
+        fixed_idx2 = [i for i, p in enumerate(pos2) if p[2] >= z_threshold]
+        mobile_idx2 = [i for i, p in enumerate(pos2) if p[2] < z_threshold]
+        
+        # Check if atom counts match (crucial for consistency)
+        assert len(fixed_idx1) == len(fixed_idx2), \
+            f"Fixed layer atom count mismatch: initial={len(fixed_idx1)}, final={len(fixed_idx2)}"
+        assert len(mobile_idx1) == len(mobile_idx2), \
+            f"Mobile layer atom count mismatch: initial={len(mobile_idx1)}, final={len(mobile_idx2)}"
+            
+        print(f"Structure analysis:")
+        print(f"  Fixed layer atoms: {len(fixed_idx1)} (z >= {z_threshold} Å)")
+        print(f"  Mobile layer atoms: {len(mobile_idx1)} (z < {z_threshold} Å)")
+        
+        sorted_fixed_idx2 = sort_by_min_distance(atoms1, atoms2, fixed_idx1, fixed_idx2)
+        final_order_idx2 = sorted_fixed_idx2 + mobile_idx2
+        atoms2_sorted = atoms2[final_order_idx2]
+        
+        final_order_idx1 = fixed_idx1 + mobile_idx1
+        atoms1_sorted = atoms1[final_order_idx1]
+        
+        # 6. Save both sorted structures to files
+        write(output1_path, atoms1_sorted, format="vasp")
+        write(output2_path, atoms2_sorted, format="vasp")
+        
+        print(f"Structure sorting completed:")
+        print(f"  Initial structure saved as '{output1_path}'")
+        print(f"  Final structure saved as '{output2_path}'")
+        
+    except FileNotFoundError as e:
+        print(f"Error: Could not find input file - {e}")
+    except AssertionError as e:
+        print(f"Error: {e}")
+        print("Please check your input structures and z_threshold value.")
+    except Exception as e:
+        print(f"Unexpected error occurred: {e}")
+    return atoms1_sorted, atoms2_sorted
 
 def interpolate_ssNEB_images(atoms_initial, atoms_final, n_images):
     """
@@ -151,7 +155,7 @@ def interpolate_ssNEB_images(atoms_initial, atoms_final, n_images):
     wrapped_frac_f = frac_f.copy()
     for i in range(len(frac_i)):
         dvec = frac_f[i] - frac_i[i]
-        dvec -= np.round(dvec)  # [-0.5, 0.5] 내의 displacement
+        dvec -= np.round(dvet
         wrapped_frac_f[i] = frac_i[i] + dvec
 
     for j in range(1, n_images + 1):
