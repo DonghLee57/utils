@@ -1,16 +1,18 @@
-from ase.io import read, write
+import os
 import numpy as np
+from ase.io import read, write
 from scipy.optimize import linear_sum_assignment
 
 def main():
-    poscar1 = 'POSCAR_initial'
-    poscar2 = 'POSCAR_final'
-    z_threshold = 15.0
+    poscar1 = 'POSCAR_i'
+    poscar2 = 'POSCAR_f'
+    z_threshold = .0
    
     a1, a2 = save_sorted(poscar1, poscar2, z_threshold)
 
-    n_imgs = 5
-    neb_images = interpolate_NEB_images(a1, a2, n_imgs)    
+    n_imgs = 12
+    neb_images = interpolate_NEB_images(a1, a2, n_imgs)
+    write('test.extxyz', neb_images, format='extxyz')
 
 def sort_by_min_distance(ref_atoms, target_atoms, idx_ref, idx_target):
     """
@@ -129,7 +131,7 @@ def save_sorted(initial_path, final_path, z_threshold):
         print(f"Unexpected error occurred: {e}")
     return atoms1_sorted, atoms2_sorted
 
-def interpolate_ssNEB_images(atoms_initial, atoms_final, n_images):
+def interpolate_NEB_images(atoms_initial, atoms_final, n_images):
     """
     ssNEB용 이미지 생성: 
     주기경계조건(PBC)과 cell 보간을 모두 고려해 원자의 최소 이동 경로로 중간 이미지 생성.
@@ -155,7 +157,7 @@ def interpolate_ssNEB_images(atoms_initial, atoms_final, n_images):
     wrapped_frac_f = frac_f.copy()
     for i in range(len(frac_i)):
         dvec = frac_f[i] - frac_i[i]
-        dvec -= np.round(dvet
+        dvec -= np.round(dvec)
         wrapped_frac_f[i] = frac_i[i] + dvec
 
     for j in range(1, n_images + 1):
@@ -168,6 +170,10 @@ def interpolate_ssNEB_images(atoms_initial, atoms_final, n_images):
         img.set_positions(pos_interp)
         img.set_pbc(pbc)
         images.append(img)
+        if os.path.isdir(f"{j:02d}"):
+            os.makedirs(f"{j:02d}",exist_ok=True)
+            write(f'{j:02d}/POSCAR', img, format='vasp')
+        
     images.append(atoms_final.copy())
     return images
 
