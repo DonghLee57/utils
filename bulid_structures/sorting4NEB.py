@@ -122,6 +122,50 @@ def set_origin(atoms, index):
         ASE atoms object with translated positions
     """
     return atoms.translate(-atoms.get_positions()[index])
-  
+
+
+
+def interpolate_ssNEB_images(atoms_initial, atoms_final, n_images):
+    """
+    ssNEB용 이미지 생성: 
+    주기경계조건(PBC)과 cell 보간을 모두 고려해 원자의 최소 이동 경로로 중간 이미지 생성.
+    
+    Args:
+        atoms_initial: ASE Atoms 객체 (초기 구조)
+        atoms_final: ASE Atoms 객체 (최종 구조)
+        n_images: 중간 이미지 개수 (initial/final 불포함)
+    
+    Returns:
+        전체 NEB 경로 (initial + 중간 이미지들 + final) 리스트
+    """
+    images = [atoms_initial.copy()]
+    pos_i = atoms_initial.get_positions()
+    pos_f = atoms_final.get_positions()
+    cell_i = atoms_initial.get_cell()
+    cell_f = atoms_final.get_cell()
+    pbc = atoms_initial.get_pbc()
+
+    frac_i = np.linalg.solve(cell_i.T, pos_i.T).T
+    frac_f = np.linalg.solve(cell_f.T, pos_f.T).T
+
+    wrapped_frac_f = frac_f.copy()
+    for i in range(len(frac_i)):
+        dvec = frac_f[i] - frac_i[i]
+        dvec -= np.round(dvec)  # [-0.5, 0.5] 내의 displacement
+        wrapped_frac_f[i] = frac_i[i] + dvec
+
+    for j in range(1, n_images + 1):
+        cell_interp = cell_i + (cell_f - cell_i) * (j / (n_images + 1))
+        frac_interp = frac_i + (wrapped_frac_f - frac_i) * (j / (n_images + 1))
+        frac_interp = frac_interp % 1.0
+        pos_interp = np.dot(frac_interp, cell_interp)
+        img = atoms_initial.copy()
+        img.set_cell(cell_interp)
+        img.set_positions(pos_interp)
+        img.set_pbc(pbc)
+        images.append(img)
+    images.append(atoms_final.copy())
+    return images
+
 if __name__ == '__main__':
     main()
