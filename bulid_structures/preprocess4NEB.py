@@ -6,7 +6,7 @@ from scipy.optimize import linear_sum_assignment
 def main():
     poscar1 = 'POSCAR_i'
     poscar2 = 'POSCAR_f'
-    z_threshold = .0
+    z_threshold = 15.0
    
     a1, a2 = save_sorted(poscar1, poscar2, z_threshold)
 
