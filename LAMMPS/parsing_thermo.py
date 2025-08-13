@@ -6,20 +6,20 @@ import matplotlib.pyplot as plt
 
 def main():
     log_file = 'lammps.log' 
-    thermo_data = parse_lammps_log(f'{log_file')
+    thermo_data = parse_lammps_log(f'{log_file}')
 
     # Examples
     base_path = './'
-    fig, ax = plot_thermo_step(thermo_dict, 
+    fig, ax = plot_thermo_step(thermo_data, 
                                'Temp', 
-                               save_path=f"{base_path}\temp_plot.png")
-    _, ax2 = plot_thermo_step(thermo_dict, 
+                               save_path=f"{base_path}/temp_plot.png")
+    _, ax2 = plot_thermo_step(thermo_data, 
                               'TotEng', 
                               fig=fig, 
                               ax=ax,
                               right_ax=True,
                               line_args={'color': 'red', 'ls': '--'},
-                              save_path=f"{base_path}\temp_toteng_plot.png")
+                              save_path=f"{base_path}/temp_toteng_plot.png")
     return 0
 
 def parse_lammps_log(log_path: str) -> dict:
