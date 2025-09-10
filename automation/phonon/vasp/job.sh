@@ -87,5 +87,6 @@ if [ "${JOB_ARRAY[1]}" -eq 1 ]; then
     done
 
     $PHONOPY -f ${phonopy_dirs}
-    $PHONOPY --qpoints="0 0 0" --dim ${SUPERCELL_DIM}
+    $PHONOPY --qpoints="0 0 0" --dim ${SUPERCELL_DIM}\
+            #--pa 1 0 0 0 1 0 0 0 1
 fi
