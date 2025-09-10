@@ -1,0 +1,8 @@
+variable          output   equal 1000
+variable          dumpstep equal 1000
+
+processors * * * grid numa
+units            metal
+boundary         p p p
+box tilt large
+read_data        ${input_structure}
