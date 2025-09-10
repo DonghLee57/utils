@@ -9,6 +9,8 @@ PYTHON='/your_python'
 PHONOPY='/your_phonopy'
 INPUTS='/vasp_input/' # INCAR_RELAX: 
 SAVE_MAT='../materials' 
+SUPERCELL_DIM="2 2 2"
+
 
 JOB_ARRAY=(1 1) # (relax phonopy)
 MAT=$(basename "$PWD")
@@ -60,7 +62,7 @@ if [ "${JOB_ARRAY[1]}" -eq 1 ]; then
 
     cd ${WORKING_DIR_2}
         cp ${JOBDIR}/${WORKING_DIR_1}/POSCAR ./POSCAR
-        $PHONOPY -d --dim 2 2 2 --pa auto
+        $PHONOPY -d --dim ${SUPERCELL_DIM} --pa auto
 
         for file in POSCAR-*;
             do
@@ -84,5 +86,5 @@ if [ "${JOB_ARRAY[1]}" -eq 1 ]; then
     done
 
     $PHONOPY -f ${phonopy_dirs}
-    $PHONOPY --qpoints="0 0 0" --dim 2 2 2
+    $PHONOPY --qpoints="0 0 0" --dim ${SUPERCELL_DIM}
 fi
