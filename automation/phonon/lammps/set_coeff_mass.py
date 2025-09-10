@@ -5,6 +5,9 @@ input_elem = sys.argv[1:]
 elements = input_elem.copy()
 elements.sort(key=lambda x: atomic_numbers[x])
 
+print('# Define interatomic potential.\n')
+# 7-net (parallel)
+print('pair_style       e3gnn/parallel\n')
 print('pair_coeff       * * ${NMPL} ${POT} ' + f'{" ".join(elements)}\n')
 
 for idx, elem in enumerate(input_elem):
