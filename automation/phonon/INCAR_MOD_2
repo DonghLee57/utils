@@ -1,0 +1,12 @@
+PREC     = Accurate
+IBRION   = -1
+NSW      = 0
+EDIFF    = 1.0e-08
+ISMEAR   = 0
+SIGMA    = 0.01
+IALGO    = 38
+LREAL    = .FALSE.
+LWAVE    = .FALSE.
+LCHARG   = .FALSE.
+ENCUT    = 500
+KSPACING = 0.5
