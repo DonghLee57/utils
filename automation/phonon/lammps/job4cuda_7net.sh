@@ -57,7 +57,8 @@ if [ "${JOB_ARRAY[1]}" -eq 1 ]; then
     ELEM=$($PYTHON vasp2lammps.py ${SAVE_MAT}/POSCAR_${MAT}.vasp)
     $PYTHON lammps2lammps.py ${WORKING_DIR_1}/relaxed.lammps ${WORKING_DIR_2} ${ELEM}
     cd ${WORKING_DIR_2}
-        $PHONOPY -d --dim ${SUPERCELL_DIM} --pa auto  --lammps -c unit.lammps
+        $PHONOPY -d --dim ${SUPERCELL_DIM} --pa auto  --lammps -c unit.lammps\
+                #--amplitude 0.01 # DISPLACEMENT_DISTANCE
 
         for file in supercell-*;
             do
