@@ -1,3 +1,5 @@
+#! /bin/bash
+
 NGPU='1'
 export CUDA_VISIBLE_DEVICES=0,1
 
