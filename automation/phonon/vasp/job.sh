@@ -15,8 +15,9 @@ SUPERCELL_DIM="2 2 2"
 JOB_ARRAY=(1 1) # (relax phonopy)
 MAT=$(basename "$PWD")
 JOBDIR=$(echo $PWD)
+WORKING_DIR_1="./relax"
+WORKING_DIR_2="./phonopy"
 if [ "${JOB_ARRAY[0]}" -eq 1 ]; then
-    WORKING_DIR_1="./relax"
     if [ ! -d "${WORKING_DIR_1}" ]; then
         mkdir "${WORKING_DIR_1}"
         echo "Directory '${WORKING_DIR_1}' created successfully."
@@ -52,7 +53,6 @@ if [ "${JOB_ARRAY[0]}" -eq 1 ]; then
 fi
 
 if [ "${JOB_ARRAY[1]}" -eq 1 ]; then
-    WORKING_DIR_2="./phonopy"
     if [ ! -d "${WORKING_DIR_2}" ]; then
         mkdir "${WORKING_DIR_2}"
         echo "Directory '${WORKING_DIR_2}' created successfully."
