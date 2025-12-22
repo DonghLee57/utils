@@ -1,0 +1,31 @@
+# base.yaml
+log: 1
+rng_seed: 0
+
+# Option A: lattice + density + chemical_formula
+lattice: 10.0
+density: 1.8
+chemical_formula: Si1O2
+
+output: sca_out.vasp
+
+save_loop: true
+loop_file: loop.extxyz
+loop_stride: 1
+
+bond_length_sampling: gaussian
+gaussian_sigma_scale: 6.0
+gaussian_max_tries: 200
+
+auto_params:
+  enabled: true
+  rdf_dir: rdf_outputs
+  pair_cutoffs:
+    Si-O: 1.9
+    Si-Si: 3.0
+    O-O: 2.0
+  prdf_prefix: prdf
+  cn_prefix: cn
+  threshold: 0.01
+  smooth_window: 7
+  cn_max: 12
