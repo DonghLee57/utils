@@ -1,4 +1,4 @@
-import sys, os
+import sys, os, glob
 from pathlib import Path
 import numpy as np
 import ase
@@ -10,11 +10,13 @@ rank = comm.Get_rank()
 
 
 def main():
+    #make_trajectory('./structure_files', rext='vasp', wext='extxyz')
+    
     my = StructureAnalysis()
     my.load_structure(sys.argv[1], sys.argv[2])
     #my.load_structure('POSCAR', 'vasp')
     #my.load_structure('test.lammps', 'lammps-data')
-    #my.load_structure('test.extxyz', 'extxyz',**{'input':'::'})
+    #my.load_structure('test.extxyz', 'extxyz',**{'index':'::'})
     
     rdf, cn_distribution = my.calculate_rdf(6, 2.5, 0.005)
     np.savetxt('rdf.out', rdf, fmt='%.4f')
@@ -164,6 +166,7 @@ class StructureAnalysis:
 
     def calculate_prdf(self, targets:tuple, rmax:float, cutoff:float=2.0, dr:float=0.02):
         bins = np.arange(dr / 2, rmax + dr / 2, dr)
+        (elemA, elemB) = targets
         if isinstance(self.structure[0], ase.atom.Atom):
             prdf, bin_edges, coordination_numbers = self.calculate_single_prdf(self.structure, targets, rmax, cutoff, dr)
         elif isinstance(self.structure[0], ase.atoms.Atoms):
@@ -228,6 +231,13 @@ class StructureAnalysis:
             theta = np.degrees(theta)
         res, bin_edges = np.histogram(theta, bins=angle_bins, density=True)
         return np.column_stack((bin_edges[:-1], res))
+
+def make_trajectory(directory, rext, wext):
+    tmp = glob.glob(f"{directory}/*")
+    atoms = []
+    for i, item in enumerate(tmp):
+        atoms.append(read(item, format=rext))
+    write(f'traj.{wext}', images=atoms, format=wext)
 
 if __name__ == "__main__":
     main()
