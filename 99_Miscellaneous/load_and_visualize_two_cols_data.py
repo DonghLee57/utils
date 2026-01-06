@@ -31,9 +31,9 @@ def read_data(filename, max_col=None, min_col=None, skip_header=1):
     data = np.genfromtxt(filename, skip_header=skip_header)
     col = data[:, 0]
     mask = np.ones(len(data), dtype=bool)
-    if max_time is not None:
+    if max_col is not None:
         mask = mask & (col <= max_col)
-    if min_time is not None:
+    if min_col is not None:
         mask = mask & (col >= min_col)
     filtered_data = data[mask]
     return filtered_data
@@ -44,9 +44,9 @@ def get_profile(data, col_index):
     return col1, col2
 
 def create_points(col1, col2, num_regions=10, sensitivity=None):
+    profiles = []
     if sensitivity == None:
         points = np.linspace(col1.min(), col1.max(), num_regions + 1)
-        profiles = []
         return profiles, points
     else:
         col2_diff = np.abs(np.diff(col2))
@@ -73,8 +73,7 @@ def create_points(col1, col2, num_regions=10, sensitivity=None):
             intervals = np.diff(points)
             max_interval_idx = np.argmax(intervals)
             new_point = (points[max_interval_idx] + points[max_interval_idx + 1]) / 2
-            points = np.sort(np.append(points, new_point)
-                                  
+            points = np.sort(np.append(points, new_point))
         return profiles, points
 
 def create_interpolator(col1, col2):
